@@ -5,8 +5,8 @@ import android.graphics.Color
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.preference.getOrDefault
-import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import eu.kanade.tachiyomi.data.track.TrackService
+import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import rx.Completable
 import rx.Observable
 import java.net.URI
@@ -105,12 +105,9 @@ class Myanimelist(private val context: Context, id: Int) : TrackService(id) {
         logout()
 
         return api.login(username, password)
-                .doOnNext { csrf ->
-                    saveCSRF(csrf) }
+                .doOnNext { csrf -> saveCSRF(csrf) }
                 .doOnNext { saveCredentials(username, password) }
-                .doOnError {
-                    logout()
-                }
+                .doOnError { logout() }
                 .toCompletable()
     }
 
