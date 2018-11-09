@@ -4,8 +4,9 @@ import android.content.Context
 import android.graphics.Color
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Track
-import eu.kanade.tachiyomi.data.track.TrackService
+import eu.kanade.tachiyomi.data.preference.getOrDefault
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
+import eu.kanade.tachiyomi.data.track.TrackService
 import rx.Completable
 import rx.Observable
 import java.net.URI
@@ -115,7 +116,7 @@ class Myanimelist(private val context: Context, id: Int) : TrackService(id) {
 
     override fun logout() {
         super.logout()
-        preferences.setCSRF("")
+        preferences.trackToken(this).delete()
         networkService.cookies.remove(URI(BASE_URL))
     }
 
@@ -125,9 +126,9 @@ class Myanimelist(private val context: Context, id: Int) : TrackService(id) {
                 checkCookies(URI(BASE_URL)) &&
                 !getCSRF().isEmpty()
 
-    private fun getCSRF(): String = preferences.trackCSRF()
+    private fun getCSRF(): String = preferences.trackToken(this).getOrDefault()
 
-    private fun saveCSRF(csrf: String) = preferences.setCSRF((csrf))
+    private fun saveCSRF(csrf: String) = preferences.trackToken(this).set(csrf)
 
     private fun checkCookies(uri: URI): Boolean {
         var ckCount = 0
