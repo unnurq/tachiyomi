@@ -70,6 +70,7 @@ class ReaderSettingsSheet(private val activity: ReaderActivity) : BottomSheetDia
      */
     private fun initPagerPreferences() {
         pager_prefs_group.visible()
+        pager_nav.bindToPreference(preferences.navigationModePager(), 1)
         scale_type.bindToPreference(preferences.imageScaleType(), 1)
         zoom_start.bindToPreference(preferences.zoomStart(), 1)
         crop_borders.bindToPreference(preferences.cropBorders())
@@ -81,6 +82,7 @@ class ReaderSettingsSheet(private val activity: ReaderActivity) : BottomSheetDia
      */
     private fun initWebtoonPreferences() {
         webtoon_prefs_group.visible()
+        webtoon_nav.bindToPreference(preferences.navigationModeWebtoon(), 1)
         crop_borders_webtoon.bindToPreference(preferences.cropBordersWebtoon())
     }
 

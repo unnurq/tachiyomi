@@ -163,6 +163,25 @@
         app:layout_constraintTop_toBottomOf="@id/end_general_preferences" />
 
     <TextView
+        android:id="@+id/pager_nav_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/pref_viewer_nav"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@id/verticalcenter"
+        app:layout_constraintBaseline_toBaselineOf="@id/pager_nav"/>
+
+    <android.support.v7.widget.AppCompatSpinner
+        android:id="@+id/pager_nav"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:entries="@array/pager_nav"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/pager_prefs"
+        app:layout_constraintLeft_toRightOf="@id/verticalcenter"
+        app:layout_constraintRight_toRightOf="@id/spinner_end" />
+
+    <TextView
         android:id="@+id/scale_type_text"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -179,7 +198,7 @@
         android:entries="@array/image_scale_type"
         app:layout_constraintLeft_toRightOf="@id/verticalcenter"
         app:layout_constraintRight_toRightOf="@id/spinner_end"
-        app:layout_constraintTop_toBottomOf="@id/pager_prefs"/>
+        app:layout_constraintTop_toBottomOf="@id/pager_nav"/>
 
     <TextView
         android:id="@+id/zoom_start_text"
@@ -231,6 +250,25 @@
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@id/end_general_preferences" />
 
+    <TextView
+        android:id="@+id/webtoon_nav_text"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/pref_viewer_nav"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toLeftOf="@id/verticalcenter"
+        app:layout_constraintBaseline_toBaselineOf="@id/webtoon_nav"/>
+
+    <android.support.v7.widget.AppCompatSpinner
+        android:id="@+id/webtoon_nav"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:entries="@array/webtoon_nav"
+        android:layout_marginTop="16dp"
+        app:layout_constraintTop_toBottomOf="@id/webtoon_prefs"
+        app:layout_constraintLeft_toRightOf="@id/verticalcenter"
+        app:layout_constraintRight_toRightOf="@id/spinner_end" />
+
     <android.support.v7.widget.SwitchCompat
         android:id="@+id/crop_borders_webtoon"
         android:layout_width="match_parent"
@@ -238,7 +276,7 @@
         android:layout_marginTop="16dp"
         android:text="@string/pref_crop_borders"
         android:textColor="?android:attr/textColorSecondary"
-        app:layout_constraintTop_toBottomOf="@id/webtoon_prefs" />
+        app:layout_constraintTop_toBottomOf="@id/webtoon_nav" />
 
     <!-- Groups of preferences -->
 
@@ -247,7 +285,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:visibility="gone"
-        app:constraint_referenced_ids="pager_prefs,scale_type_text,scale_type,zoom_start_text,zoom_start,crop_borders,page_transitions"
+        app:constraint_referenced_ids="pager_prefs,pager_nav_text,pager_nav,scale_type_text,scale_type,zoom_start_text,zoom_start,crop_borders,page_transitions"
         tools:visibility="visible" />
 
     <android.support.constraint.Group
@@ -255,7 +293,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:visibility="gone"
-        app:constraint_referenced_ids="webtoon_prefs,crop_borders_webtoon" />
+        app:constraint_referenced_ids="webtoon_prefs,webtoon_nav_text,webtoon_nav,crop_borders_webtoon" />
 
     <android.support.constraint.Guideline
         android:id="@+id/verticalcenter"
