@@ -34,6 +34,9 @@ class WebtoonConfig(preferences: PreferencesHelper = Injekt.get()) {
     var doubleTapAnimDuration = 500
         private set
 
+    var navigationMode = 0
+        private set
+
     init {
         preferences.readWithTapping()
             .register({ tappingEnabled = it })
@@ -52,6 +55,9 @@ class WebtoonConfig(preferences: PreferencesHelper = Injekt.get()) {
 
         preferences.readWithVolumeKeysInverted()
             .register({ volumeKeysInverted = it })
+
+        preferences.navigationModeWebtoon()
+            .register({ navigationMode = it })
     }
 
     fun unsubscribe() {

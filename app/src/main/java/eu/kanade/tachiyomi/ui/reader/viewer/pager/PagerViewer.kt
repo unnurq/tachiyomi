@@ -12,6 +12,10 @@ import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.BaseViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.MENU
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.NEXT
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.PREV
+import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerNavigationHelper.Companion.getNavigator
 import timber.log.Timber
 
 /**
@@ -86,10 +90,15 @@ abstract class PagerViewer(val activity: ReaderActivity) : BaseViewer {
         })
         pager.tapListener = { event ->
             val positionX = event.x
-            when {
-                positionX < pager.width * 0.33f -> if (config.tappingEnabled) moveLeft()
-                positionX > pager.width * 0.66f -> if (config.tappingEnabled) moveRight()
-                else -> activity.toggleMenu()
+            val pos = Pair(event.rawX / pager.width, event.rawY / pager.height)
+            if (!config.tappingEnabled) activity.toggleMenu()
+            else {
+                val navigator = getNavigator(config.navigationMode)
+                when (navigator.getAction(pos)){
+                    MENU -> activity.toggleMenu()
+                    NEXT -> moveRight()
+                    PREV -> moveLeft()
+                }
             }
         }
         pager.longTapListener = f@ {

@@ -12,6 +12,10 @@ import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.BaseViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.MENU
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.NEXT
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.PREV
+import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonNavigationHelper.Companion.getNavigator
 import rx.subscriptions.CompositeSubscription
 import timber.log.Timber
 
@@ -88,11 +92,16 @@ class WebtoonViewer(val activity: ReaderActivity) : BaseViewer {
             }
         })
         recycler.tapListener = { event ->
-            val positionY = event.rawY
-            when {
-                positionY < recycler.height * 0.33 -> if (config.tappingEnabled) scrollUp()
-                positionY > recycler.height * 0.66 -> if (config.tappingEnabled) scrollDown()
-                else -> activity.toggleMenu()
+            // Normallize the raw values to lie between 0 and 1
+            val pos = Pair(event.rawX / recycler.width, event.rawY / recycler.height)
+            if (!config.tappingEnabled) activity.toggleMenu()
+            else {
+                val navigator = getNavigator(config.navigationMode)
+                when (navigator.getAction(pos)){
+                    MENU -> activity.toggleMenu()
+                    NEXT -> scrollDown()
+                    PREV -> scrollUp()
+                }
             }
         }
         recycler.longTapListener = f@ { event ->
