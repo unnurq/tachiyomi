@@ -51,6 +51,10 @@ object PreferenceKeys {
 
     const val readWithVolumeKeysInverted = "reader_volume_keys_inverted"
 
+    const val navigationModePager = "reader_navigation_mode_pager"
+
+    const val navigationModeWebtoon = "reader_navigation_mode_webtoon"
+
     const val portraitColumns = "pref_library_columns_portrait_key"
 
     const val landscapeColumns = "pref_library_columns_landscape_key"
