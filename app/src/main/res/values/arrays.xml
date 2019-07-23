@@ -46,10 +46,12 @@
 
     <string-array name="pager_nav">
         <item>@string/default_nav</item>
+        <item>@string/l_nav</item>
     </string-array>
 
     <string-array name="webtoon_nav">
         <item>@string/default_nav</item>
+        <item>@string/l_nav</item>
     </string-array>
 
     <string-array name="image_scale_type">

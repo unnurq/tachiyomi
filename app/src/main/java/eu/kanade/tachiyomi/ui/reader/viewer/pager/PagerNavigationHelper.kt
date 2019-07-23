@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
 import android.graphics.RectF
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.navigation.LNavigation
 
 
 class PagerNavigationHelper {
@@ -9,10 +10,12 @@ class PagerNavigationHelper {
     companion object {
         // Lazy init, in case we have a lot of them in future
         val default by lazy { PagerDefaultNavigation() }
+        private val lNav by lazy { LNavigation() }
 
         val getNavigator = fun(i: Int) : ViewerNavigation {
             return when (i) {
                 0 -> default
+                1 -> lNav
 
                 else -> default
             }
