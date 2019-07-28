@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
+import android.graphics.PointF
 import android.support.v4.view.ViewPager
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -89,8 +90,8 @@ abstract class PagerViewer(val activity: ReaderActivity) : BaseViewer {
             }
         })
         pager.tapListener = { event ->
-            val positionX = event.x
-            val pos = Pair(event.rawX / pager.width, event.rawY / pager.height)
+            // Normallize the raw values to lie between 0 and 1
+            val pos = PointF(event.rawX / pager.width, event.rawY / pager.height)
             if (!config.tappingEnabled) activity.toggleMenu()
             else {
                 val navigator = getNavigator(config.navigationMode)

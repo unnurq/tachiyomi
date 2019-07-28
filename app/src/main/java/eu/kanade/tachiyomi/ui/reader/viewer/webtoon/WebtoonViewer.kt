@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
+import android.graphics.PointF
 import android.support.v7.widget.RecyclerView
 import android.support.v7.widget.WebtoonLayoutManager
 import android.view.KeyEvent
@@ -93,7 +94,7 @@ class WebtoonViewer(val activity: ReaderActivity) : BaseViewer {
         })
         recycler.tapListener = { event ->
             // Normallize the raw values to lie between 0 and 1
-            val pos = Pair(event.rawX / recycler.width, event.rawY / recycler.height)
+            val pos = PointF(event.rawX / recycler.width, event.rawY / recycler.height)
             if (!config.tappingEnabled) activity.toggleMenu()
             else {
                 val navigator = getNavigator(config.navigationMode)
