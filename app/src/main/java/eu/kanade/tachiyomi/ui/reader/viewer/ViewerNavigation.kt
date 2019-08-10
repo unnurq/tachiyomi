@@ -11,6 +11,8 @@ abstract class ViewerNavigation {
         const val PREV = 2
     }
 
+    private var constantMenuRegion : RectF = RectF(0f, 0f, 1f, 0.1f)
+
     abstract var menuRegion : List<RectF>
 
     abstract var nextRegion : List<RectF>
@@ -21,6 +23,7 @@ abstract class ViewerNavigation {
         val x = pos.x
         val y = pos.y
         val action = when {
+            constantMenuRegion.contains(x, y) -> MENU
             menuRegion.any { it.contains(x, y) } -> MENU
             nextRegion.any { it.contains(x, y) } -> NEXT
             prevRegion.any { it.contains(x, y) } -> PREV
