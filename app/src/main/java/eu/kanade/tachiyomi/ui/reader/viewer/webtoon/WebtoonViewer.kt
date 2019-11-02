@@ -16,7 +16,6 @@ import eu.kanade.tachiyomi.ui.reader.viewer.BaseViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.MENU
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.NEXT
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.PREV
-import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonNavigationHelper.Companion.getNavigator
 import rx.subscriptions.CompositeSubscription
 import timber.log.Timber
 
@@ -97,7 +96,7 @@ class WebtoonViewer(val activity: ReaderActivity) : BaseViewer {
             val pos = PointF(event.rawX / recycler.width, event.rawY / recycler.height)
             if (!config.tappingEnabled) activity.toggleMenu()
             else {
-                val navigator = getNavigator(config.navigationMode)
+                val navigator = config.navigationMode
                 when (navigator.getAction(pos)){
                     MENU -> activity.toggleMenu()
                     NEXT -> scrollDown()

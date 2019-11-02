@@ -2,6 +2,9 @@ package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
 import com.f2prateek.rx.preferences.Preference
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.navigation.KindlishNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.navigation.LNavigation
 import eu.kanade.tachiyomi.util.addTo
 import rx.subscriptions.CompositeSubscription
 import uy.kohesive.injekt.Injekt
@@ -34,7 +37,7 @@ class WebtoonConfig(preferences: PreferencesHelper = Injekt.get()) {
     var doubleTapAnimDuration = 500
         private set
 
-    var navigationMode = 0
+    var navigationMode : ViewerNavigation = WebtoonDefaultNavigation()
         private set
 
     init {
@@ -57,7 +60,15 @@ class WebtoonConfig(preferences: PreferencesHelper = Injekt.get()) {
             .register({ volumeKeysInverted = it })
 
         preferences.navigationModeWebtoon()
-            .register({ navigationMode = it })
+            .register({
+                navigationMode = when (it) {
+                    0 -> WebtoonDefaultNavigation()
+                    1 -> LNavigation()
+                    2 -> KindlishNavigation()
+
+                    else -> WebtoonDefaultNavigation()
+                }
+            })
     }
 
     fun unsubscribe() {
