@@ -2,6 +2,9 @@ package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
 import com.f2prateek.rx.preferences.Preference
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.navigation.KindlishNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.navigation.LNavigation
 import eu.kanade.tachiyomi.util.addTo
 import rx.subscriptions.CompositeSubscription
 import uy.kohesive.injekt.Injekt
@@ -43,7 +46,7 @@ class PagerConfig(private val viewer: PagerViewer, preferences: PreferencesHelpe
     var doubleTapAnimDuration = 500
         private set
 
-    var navigationMode = 0
+    var navigationMode : ViewerNavigation = PagerDefaultNavigation()
         private set
 
     init {
@@ -75,7 +78,15 @@ class PagerConfig(private val viewer: PagerViewer, preferences: PreferencesHelpe
             .register({ volumeKeysInverted = it })
 
         preferences.navigationModePager()
-            .register({ navigationMode = it })
+            .register({
+                navigationMode = when (it) {
+                    0 -> PagerDefaultNavigation()
+                    1 -> LNavigation()
+                    2 -> KindlishNavigation()
+
+                    else -> PagerDefaultNavigation()
+                }
+            })
     }
 
     fun unsubscribe() {
