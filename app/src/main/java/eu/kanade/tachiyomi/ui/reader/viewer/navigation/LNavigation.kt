@@ -4,9 +4,6 @@ import android.graphics.RectF
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
 
 class LNavigation : ViewerNavigation() {
-    override var menuRegion = listOf(
-            RectF(0.33f, 0.33f, 0.66f, 0.66f)
-    )
 
     override var nextRegion = listOf(
             RectF(0.66f, 0.33f, 1f, 0.66f),

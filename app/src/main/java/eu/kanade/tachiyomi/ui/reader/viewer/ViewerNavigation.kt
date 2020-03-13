@@ -13,8 +13,6 @@ abstract class ViewerNavigation {
 
     private var constantMenuRegion : RectF = RectF(0f, 0f, 1f, 0.1f)
 
-    abstract var menuRegion : List<RectF>
-
     abstract var nextRegion : List<RectF>
 
     abstract var prevRegion : List<RectF>
