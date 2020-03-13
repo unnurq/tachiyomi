@@ -5,29 +5,24 @@ import android.graphics.RectF
 
 abstract class ViewerNavigation {
 
-    companion object {
-        const val MENU = 0
-        const val NEXT = 1
-        const val PREV = 2
+    enum class NavigationRegion {
+        NEXT, PREV, MENU
     }
 
-    private var constantMenuRegion : RectF = RectF(0f, 0f, 1f, 0.1f)
+    private var constantMenuRegion : RectF = RectF(0f, 0f, 1f, 0.05f)
 
     abstract var nextRegion : List<RectF>
 
     abstract var prevRegion : List<RectF>
 
-    fun getAction(pos: PointF) : Int {
+    fun getAction(pos: PointF) : NavigationRegion {
         val x = pos.x
         val y = pos.y
-        val action = when {
-            constantMenuRegion.contains(x, y) -> MENU
-            menuRegion.any { it.contains(x, y) } -> MENU
-            nextRegion.any { it.contains(x, y) } -> NEXT
-            prevRegion.any { it.contains(x, y) } -> PREV
-
-            else -> MENU
+        return when {
+            constantMenuRegion.contains(x, y) -> NavigationRegion.MENU
+            nextRegion.any { it.contains(x, y) } -> NavigationRegion.NEXT
+            prevRegion.any { it.contains(x, y) } -> NavigationRegion.PREV
+            else -> NavigationRegion.MENU
         }
-        return action
     }
 }

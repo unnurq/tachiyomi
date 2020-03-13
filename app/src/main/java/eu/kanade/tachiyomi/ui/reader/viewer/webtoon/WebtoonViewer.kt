@@ -13,9 +13,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.BaseViewer
-import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.MENU
-import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.NEXT
-import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.Companion.PREV
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
 import rx.subscriptions.CompositeSubscription
 import timber.log.Timber
 
@@ -98,9 +96,9 @@ class WebtoonViewer(val activity: ReaderActivity) : BaseViewer {
             else {
                 val navigator = config.navigationMode
                 when (navigator.getAction(pos)){
-                    MENU -> activity.toggleMenu()
-                    NEXT -> scrollDown()
-                    PREV -> scrollUp()
+                    NavigationRegion.MENU -> activity.toggleMenu()
+                    NavigationRegion.NEXT -> scrollDown()
+                    NavigationRegion.PREV -> scrollUp()
                 }
             }
         }
