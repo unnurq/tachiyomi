@@ -14,15 +14,18 @@ import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import eu.kanade.tachiyomi.network.GET
 import eu.kanade.tachiyomi.network.POST
 import eu.kanade.tachiyomi.network.asObservableSuccess
-import okhttp3.*
+import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
 
 class ShikimoriApi(private val client: OkHttpClient, interceptor: ShikimoriInterceptor) {
 
     private val gson: Gson by injectLazy()
-    private val parser = JsonParser()
-    private val jsonime = MediaType.parse("application/json; charset=utf-8")
+    private val jsonime = "application/json; charset=utf-8".toMediaTypeOrNull()
     private val authClient = client.newBuilder().addInterceptor(interceptor).build()
 
     fun addLibManga(track: Track, user_id: String): Observable<Track> {
@@ -36,7 +39,7 @@ class ShikimoriApi(private val client: OkHttpClient, interceptor: ShikimoriInter
                         "status" to track.toShikimoriStatus()
                 )
         )
-        val body = RequestBody.create(jsonime, payload.toString())
+        val body = payload.toString().toRequestBody(jsonime)
         val request = Request.Builder()
                 .url("$apiUrl/v2/user_rates")
                 .post(body)
@@ -63,14 +66,13 @@ class ShikimoriApi(private val client: OkHttpClient, interceptor: ShikimoriInter
         return authClient.newCall(request)
                 .asObservableSuccess()
                 .map { netResponse ->
-                    val responseBody = netResponse.body()?.string().orEmpty()
+                    val responseBody = netResponse.body?.string().orEmpty()
                     if (responseBody.isEmpty()) {
                         throw Exception("Null Response")
                     }
-                    val response = parser.parse(responseBody).array
+                    val response = JsonParser.parseString(responseBody).array
                     response.map { jsonToSearch(it.obj) }
                 }
-
     }
 
     private fun jsonToSearch(obj: JsonObject): TrackSearch {
@@ -120,17 +122,17 @@ class ShikimoriApi(private val client: OkHttpClient, interceptor: ShikimoriInter
         return authClient.newCall(requestMangas)
                 .asObservableSuccess()
                 .map { netResponse ->
-                    val responseBody = netResponse.body()?.string().orEmpty()
-                    parser.parse(responseBody).obj
+                    val responseBody = netResponse.body?.string().orEmpty()
+                    JsonParser.parseString(responseBody).obj
                 }.flatMap { mangas ->
                     authClient.newCall(request)
                             .asObservableSuccess()
                             .map { netResponse ->
-                                val responseBody = netResponse.body()?.string().orEmpty()
+                                val responseBody = netResponse.body?.string().orEmpty()
                                 if (responseBody.isEmpty()) {
                                     throw Exception("Null Response")
                                 }
-                                val response = parser.parse(responseBody).array
+                                val response = JsonParser.parseString(responseBody).array
                                 if (response.size() > 1) {
                                     throw Exception("Too much mangas in response")
                                 }
@@ -143,13 +145,13 @@ class ShikimoriApi(private val client: OkHttpClient, interceptor: ShikimoriInter
     }
 
     fun getCurrentUser(): Int {
-        val user = authClient.newCall(GET("$apiUrl/users/whoami")).execute().body()?.string()
-        return parser.parse(user).obj["id"].asInt
+        val user = authClient.newCall(GET("$apiUrl/users/whoami")).execute().body?.string()
+        return JsonParser.parseString(user).obj["id"].asInt
     }
 
     fun accessToken(code: String): Observable<OAuth> {
         return client.newCall(accessTokenRequest(code)).asObservableSuccess().map { netResponse ->
-            val responseBody = netResponse.body()?.string().orEmpty()
+            val responseBody = netResponse.body?.string().orEmpty()
             if (responseBody.isEmpty()) {
                 throw Exception("Null Response")
             }
@@ -167,15 +169,14 @@ class ShikimoriApi(private val client: OkHttpClient, interceptor: ShikimoriInter
                     .build()
     )
 
-
     companion object {
         private const val clientId = "1aaf4cf232372708e98b5abc813d795b539c5a916dbbfe9ac61bf02a360832cc"
         private const val clientSecret = "229942c742dd4cde803125d17d64501d91c0b12e14cb1e5120184d77d67024c0"
 
-        private const val baseUrl = "https://shikimori.org"
-        private const val apiUrl = "https://shikimori.org/api"
-        private const val oauthUrl = "https://shikimori.org/oauth/token"
-        private const val loginUrl = "https://shikimori.org/oauth/authorize"
+        private const val baseUrl = "https://shikimori.one"
+        private const val apiUrl = "https://shikimori.one/api"
+        private const val oauthUrl = "https://shikimori.one/oauth/token"
+        private const val loginUrl = "https://shikimori.one/oauth/authorize"
 
         private const val redirectUrl = "tachiyomi://shikimori-auth"
         private const val baseMangaUrl = "$apiUrl/mangas"
@@ -191,7 +192,6 @@ class ShikimoriApi(private val client: OkHttpClient, interceptor: ShikimoriInter
                         .appendQueryParameter("response_type", "code")
                         .build()
 
-
         fun refreshTokenRequest(token: String) = POST(oauthUrl,
                 body = FormBody.Builder()
                         .add("grant_type", "refresh_token")
@@ -199,7 +199,5 @@ class ShikimoriApi(private val client: OkHttpClient, interceptor: ShikimoriInter
                         .add("client_secret", clientSecret)
                         .add("refresh_token", token)
                         .build())
-
     }
-
 }

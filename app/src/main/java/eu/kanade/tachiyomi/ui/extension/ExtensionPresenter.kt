@@ -1,25 +1,31 @@
 package eu.kanade.tachiyomi.ui.extension
 
+import android.app.Application
 import android.os.Bundle
+import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.data.preference.getOrDefault
 import eu.kanade.tachiyomi.extension.ExtensionManager
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
 import eu.kanade.tachiyomi.ui.base.presenter.BasePresenter
+import eu.kanade.tachiyomi.util.system.LocaleHelper
+import java.util.concurrent.TimeUnit
 import rx.Observable
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.util.concurrent.TimeUnit
 
-private typealias ExtensionTuple
-        = Triple<List<Extension.Installed>, List<Extension.Untrusted>, List<Extension.Available>>
+private typealias ExtensionTuple =
+        Triple<List<Extension.Installed>, List<Extension.Untrusted>, List<Extension.Available>>
 
 /**
  * Presenter of [ExtensionController].
  */
 open class ExtensionPresenter(
-        private val extensionManager: ExtensionManager = Injekt.get()
+    private val extensionManager: ExtensionManager = Injekt.get(),
+    private val preferences: PreferencesHelper = Injekt.get()
 ) : BasePresenter<ExtensionController>() {
 
     private var extensions = emptyList<ExtensionItem>()
@@ -39,8 +45,7 @@ open class ExtensionPresenter(
         val availableObservable = extensionManager.getAvailableExtensionsObservable()
                 .startWith(emptyList<Extension.Available>())
 
-        return Observable.combineLatest(installedObservable, untrustedObservable, availableObservable)
-                { installed, untrusted, available -> Triple(installed, untrusted, available) }
+        return Observable.combineLatest(installedObservable, untrustedObservable, availableObservable) { installed, untrusted, available -> Triple(installed, untrusted, available) }
                 .debounce(100, TimeUnit.MILLISECONDS)
                 .map(::toItems)
                 .observeOn(AndroidSchedulers.mainThread())
@@ -49,20 +54,33 @@ open class ExtensionPresenter(
 
     @Synchronized
     private fun toItems(tuple: ExtensionTuple): List<ExtensionItem> {
+        val context = Injekt.get<Application>()
+        val activeLangs = preferences.enabledLanguages().getOrDefault()
+
         val (installed, untrusted, available) = tuple
 
         val items = mutableListOf<ExtensionItem>()
 
-        val installedSorted = installed.sortedWith(compareBy({ !it.hasUpdate }, { it.pkgName }))
+        val updatesSorted = installed.filter { it.hasUpdate }.sortedBy { it.pkgName }
+        val installedSorted = installed.filter { !it.hasUpdate }.sortedWith(compareBy({ !it.isObsolete }, { it.pkgName }))
         val untrustedSorted = untrusted.sortedBy { it.pkgName }
         val availableSorted = available
-                // Filter out already installed extensions
-                .filter { avail -> installed.none { it.pkgName == avail.pkgName }
-                        && untrusted.none { it.pkgName == avail.pkgName } }
+                // Filter out already installed extensions and disabled languages
+                .filter { avail ->
+                    installed.none { it.pkgName == avail.pkgName } &&
+                            untrusted.none { it.pkgName == avail.pkgName } &&
+                            (avail.lang in activeLangs || avail.lang == "all")
+                }
                 .sortedBy { it.pkgName }
 
+        if (updatesSorted.isNotEmpty()) {
+            val header = ExtensionGroupItem(context.getString(R.string.ext_updates_pending), updatesSorted.size, true)
+            items += updatesSorted.map { extension ->
+                ExtensionItem(extension, header, currentDownloads[extension.pkgName])
+            }
+        }
         if (installedSorted.isNotEmpty() || untrustedSorted.isNotEmpty()) {
-            val header = ExtensionGroupItem(true, installedSorted.size + untrustedSorted.size)
+            val header = ExtensionGroupItem(context.getString(R.string.ext_installed), installedSorted.size + untrustedSorted.size)
             items += installedSorted.map { extension ->
                 ExtensionItem(extension, header, currentDownloads[extension.pkgName])
             }
@@ -71,10 +89,17 @@ open class ExtensionPresenter(
             }
         }
         if (availableSorted.isNotEmpty()) {
-            val header = ExtensionGroupItem(false, availableSorted.size)
-            items += availableSorted.map { extension ->
-                ExtensionItem(extension, header, currentDownloads[extension.pkgName])
-            }
+            val availableGroupedByLang = availableSorted
+                    .groupBy { LocaleHelper.getDisplayName(it.lang, context) }
+                    .toSortedMap()
+
+            availableGroupedByLang
+                    .forEach {
+                        val header = ExtensionGroupItem(it.key, it.value.size)
+                        items += it.value.map { extension ->
+                            ExtensionItem(extension, header, currentDownloads[extension.pkgName])
+                        }
+                    }
         }
 
         this.extensions = items
@@ -127,5 +152,4 @@ open class ExtensionPresenter(
     fun trustSignature(signatureHash: String) {
         extensionManager.trustSignature(signatureHash)
     }
-
 }

@@ -15,19 +15,19 @@ import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.base.presenter.BasePresenter
-import eu.kanade.tachiyomi.util.combineLatest
-import eu.kanade.tachiyomi.util.isNullOrUnsubscribed
+import eu.kanade.tachiyomi.util.lang.combineLatest
+import eu.kanade.tachiyomi.util.lang.isNullOrUnsubscribed
+import java.io.IOException
+import java.io.InputStream
+import java.util.ArrayList
+import java.util.Collections
+import java.util.Comparator
 import rx.Observable
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
 import rx.schedulers.Schedulers
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.io.IOException
-import java.io.InputStream
-import java.util.ArrayList
-import java.util.Collections
-import java.util.Comparator
 
 /**
  * Class containing library information.
@@ -43,11 +43,11 @@ private typealias LibraryMap = Map<Int, List<LibraryItem>>
  * Presenter of [LibraryController].
  */
 class LibraryPresenter(
-        private val db: DatabaseHelper = Injekt.get(),
-        private val preferences: PreferencesHelper = Injekt.get(),
-        private val coverCache: CoverCache = Injekt.get(),
-        private val sourceManager: SourceManager = Injekt.get(),
-        private val downloadManager: DownloadManager = Injekt.get()
+    private val db: DatabaseHelper = Injekt.get(),
+    private val preferences: PreferencesHelper = Injekt.get(),
+    private val coverCache: CoverCache = Injekt.get(),
+    private val sourceManager: SourceManager = Injekt.get(),
+    private val downloadManager: DownloadManager = Injekt.get()
 ) : BasePresenter<LibraryController>() {
 
     private val context = preferences.context
@@ -89,12 +89,15 @@ class LibraryPresenter(
     fun subscribeLibrary() {
         if (librarySubscription.isNullOrUnsubscribed()) {
             librarySubscription = getLibraryObservable()
-                    .combineLatest(downloadTriggerRelay.observeOn(Schedulers.io()),
-                            { lib, _ -> lib.apply { setDownloadCount(mangaMap) } })
-                    .combineLatest(filterTriggerRelay.observeOn(Schedulers.io()),
-                            { lib, _ -> lib.copy(mangaMap = applyFilters(lib.mangaMap)) })
-                    .combineLatest(sortTriggerRelay.observeOn(Schedulers.io()),
-                            { lib, _ -> lib.copy(mangaMap = applySort(lib.mangaMap)) })
+                    .combineLatest(downloadTriggerRelay.observeOn(Schedulers.io())) { lib, _ ->
+                        lib.apply { setDownloadCount(mangaMap) }
+                    }
+                    .combineLatest(filterTriggerRelay.observeOn(Schedulers.io())) { lib, _ ->
+                        lib.copy(mangaMap = applyFilters(lib.mangaMap))
+                    }
+                    .combineLatest(sortTriggerRelay.observeOn(Schedulers.io())) { lib, _ ->
+                        lib.copy(mangaMap = applySort(lib.mangaMap))
+                    }
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribeLatestCache({ view, (categories, mangaMap) ->
                         view.onNextLibraryUpdate(categories, mangaMap)
@@ -114,7 +117,7 @@ class LibraryPresenter(
 
         val filterCompleted = preferences.filterCompleted().getOrDefault()
 
-        val filterFn: (LibraryItem) -> Boolean = f@ { item ->
+        val filterFn: (LibraryItem) -> Boolean = f@{ item ->
             // Filter when there isn't unread chapters.
             if (filterUnread && item.manga.unread == 0) {
                 return@f false
@@ -182,10 +185,14 @@ class LibraryPresenter(
             var counter = 0
             db.getTotalChapterManga().executeAsBlocking().associate { it.id!! to counter++ }
         }
+        val latestChapterManga by lazy {
+            var counter = 0
+            db.getLatestChapterManga().executeAsBlocking().associate { it.id!! to counter++ }
+        }
 
         val sortFn: (LibraryItem, LibraryItem) -> Int = { i1, i2 ->
             when (sortingMode) {
-                LibrarySort.ALPHA -> i1.manga.title.compareTo(i2.manga.title)
+                LibrarySort.ALPHA -> i1.manga.title.compareTo(i2.manga.title, true)
                 LibrarySort.LAST_READ -> {
                     // Get index of manga, set equal to list if size unknown.
                     val manga1LastRead = lastReadManga[i1.manga.id!!] ?: lastReadManga.size
@@ -199,10 +206,12 @@ class LibraryPresenter(
                     val mange2TotalChapter = totalChapterManga[i2.manga.id!!] ?: 0
                     manga1TotalChapter.compareTo(mange2TotalChapter)
                 }
-                LibrarySort.SOURCE -> {
-                    val source1Name = sourceManager.getOrStub(i1.manga.source).name
-                    val source2Name = sourceManager.getOrStub(i2.manga.source).name
-                    source1Name.compareTo(source2Name)
+                LibrarySort.LATEST_CHAPTER -> {
+                    val manga1latestChapter = latestChapterManga[i1.manga.id!!]
+                            ?: latestChapterManga.size
+                    val manga2latestChapter = latestChapterManga[i2.manga.id!!]
+                            ?: latestChapterManga.size
+                    manga1latestChapter.compareTo(manga2latestChapter)
                 }
                 else -> throw Exception("Unknown sorting mode")
             }
@@ -222,16 +231,15 @@ class LibraryPresenter(
      * @return an observable of the categories and its manga.
      */
     private fun getLibraryObservable(): Observable<Library> {
-        return Observable.combineLatest(getCategoriesObservable(), getLibraryMangasObservable(),
-                { dbCategories, libraryManga ->
-                    val categories = if (libraryManga.containsKey(0))
-                        arrayListOf(Category.createDefault()) + dbCategories
-                    else
-                        dbCategories
+        return Observable.combineLatest(getCategoriesObservable(), getLibraryMangasObservable()) { dbCategories, libraryManga ->
+            val categories = if (libraryManga.containsKey(0))
+                arrayListOf(Category.createDefault()) + dbCategories
+            else
+                dbCategories
 
-                    this.categories = categories
-                    Library(categories, libraryManga)
-                })
+            this.categories = categories
+            Library(categories, libraryManga)
+        }
     }
 
     /**
@@ -367,5 +375,4 @@ class LibraryPresenter(
         }
         return false
     }
-
 }

@@ -12,8 +12,8 @@ import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.SChapter
 import eu.kanade.tachiyomi.ui.base.presenter.BasePresenter
-import eu.kanade.tachiyomi.util.combineLatest
-import eu.kanade.tachiyomi.util.syncChaptersWithSource
+import eu.kanade.tachiyomi.util.chapter.syncChaptersWithSource
+import eu.kanade.tachiyomi.util.lang.combineLatest
 import rx.Observable
 import rx.android.schedulers.AndroidSchedulers
 import rx.schedulers.Schedulers
@@ -21,9 +21,9 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 class MigrationPresenter(
-        private val sourceManager: SourceManager = Injekt.get(),
-        private val db: DatabaseHelper = Injekt.get(),
-        private val preferences: PreferencesHelper = Injekt.get()
+    private val sourceManager: SourceManager = Injekt.get(),
+    private val db: DatabaseHelper = Injekt.get(),
+    private val preferences: PreferencesHelper = Injekt.get()
 ) : BasePresenter<MigrationController>() {
 
     var state = ViewState()
@@ -42,8 +42,8 @@ class MigrationPresenter(
                 .observeOn(AndroidSchedulers.mainThread())
                 .doOnNext { state = state.copy(sourcesWithManga = findSourcesWithManga(it)) }
                 .combineLatest(stateRelay.map { it.selectedSource }
-                        .distinctUntilChanged(),
-                        { library, source -> library to source })
+                        .distinctUntilChanged()
+                ) { library, source -> library to source }
                 .filter { (_, source) -> source != null }
                 .observeOn(Schedulers.io())
                 .map { (library, source) -> libraryToMigrationItem(library, source!!.id) }
@@ -94,8 +94,13 @@ class MigrationPresenter(
                 .subscribe()
     }
 
-    private fun migrateMangaInternal(source: Source, sourceChapters: List<SChapter>,
-                                     prevManga: Manga, manga: Manga, replace: Boolean) {
+    private fun migrateMangaInternal(
+        source: Source,
+        sourceChapters: List<SChapter>,
+        prevManga: Manga,
+        manga: Manga,
+        replace: Boolean
+    ) {
 
         val flags = preferences.migrateFlags().getOrDefault()
         val migrateChapters = MigrationFlags.hasChapters(flags)

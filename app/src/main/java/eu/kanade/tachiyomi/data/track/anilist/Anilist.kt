@@ -17,7 +17,7 @@ class Anilist(private val context: Context, id: Int) : TrackService(id) {
     companion object {
         const val READING = 1
         const val COMPLETED = 2
-        const val ON_HOLD = 3
+        const val PAUSED = 3
         const val DROPPED = 4
         const val PLANNING = 5
         const val REPEATING = 6
@@ -52,25 +52,27 @@ class Anilist(private val context: Context, id: Int) : TrackService(id) {
         }
     }
 
-    override fun getLogo() = R.drawable.al
+    override fun getLogo() = R.drawable.tracker_anilist
 
-    override fun getLogoColor() = Color.rgb(18, 25, 35)
+    override fun getLogoColor() = Color.rgb(0x12, 0x19, 0x23)
 
     override fun getStatusList(): List<Int> {
-        return listOf(READING, COMPLETED, ON_HOLD, DROPPED, PLANNING, REPEATING)
+        return listOf(READING, PLANNING, COMPLETED, REPEATING, PAUSED, DROPPED)
     }
 
     override fun getStatus(status: Int): String = with(context) {
         when (status) {
             READING -> getString(R.string.reading)
-            COMPLETED -> getString(R.string.completed)
-            ON_HOLD -> getString(R.string.on_hold)
-            DROPPED -> getString(R.string.dropped)
             PLANNING -> getString(R.string.plan_to_read)
+            COMPLETED -> getString(R.string.completed)
             REPEATING -> getString(R.string.repeating)
+            PAUSED -> getString(R.string.paused)
+            DROPPED -> getString(R.string.dropped)
             else -> ""
         }
     }
+
+    override fun getCompletionStatus(): Int = COMPLETED
 
     override fun getScoreList(): List<String> {
         return when (scorePreference.getOrDefault()) {
@@ -133,11 +135,8 @@ class Anilist(private val context: Context, id: Int) : TrackService(id) {
     }
 
     override fun update(track: Track): Observable<Track> {
-        if (track.total_chapters != 0 && track.last_chapter_read == track.total_chapters) {
-            track.status = COMPLETED
-        }
         // If user was using API v1 fetch library_id
-        if (track.library_id == null || track.library_id!! == 0L){
+        if (track.library_id == null || track.library_id!! == 0L) {
             return api.findLibManga(track, getUsername().toInt()).flatMap {
                 if (it == null) {
                     throw Exception("$track not found on user library")
@@ -187,7 +186,7 @@ class Anilist(private val context: Context, id: Int) : TrackService(id) {
         return api.getCurrentUser().map { (username, scoreType) ->
             scorePreference.set(scoreType)
             saveCredentials(username.toString(), oauth.access_token)
-         }.doOnError{
+        }.doOnError {
             logout()
         }.toCompletable()
     }
@@ -209,6 +208,4 @@ class Anilist(private val context: Context, id: Int) : TrackService(id) {
             null
         }
     }
-
 }
-

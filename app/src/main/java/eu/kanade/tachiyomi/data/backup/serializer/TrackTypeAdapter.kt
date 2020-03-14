@@ -1,6 +1,5 @@
 package eu.kanade.tachiyomi.data.backup.serializer
 
-import android.telecom.DisconnectCause.REMOTE
 import com.github.salomonbrys.kotson.typeAdapter
 import com.google.gson.TypeAdapter
 import com.google.gson.stream.JsonToken
@@ -42,9 +41,7 @@ object TrackTypeAdapter {
                 beginObject()
                 while (hasNext()) {
                     if (peek() == JsonToken.NAME) {
-                        val name = nextName()
-
-                        when (name) {
+                        when (nextName()) {
                             TITLE -> track.title = nextString()
                             SYNC -> track.sync_id = nextInt()
                             MEDIA -> track.media_id = nextInt()

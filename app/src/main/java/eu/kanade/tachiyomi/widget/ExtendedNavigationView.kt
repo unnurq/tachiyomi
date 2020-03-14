@@ -2,25 +2,26 @@ package eu.kanade.tachiyomi.widget
 
 import android.content.Context
 import android.graphics.drawable.Drawable
-import android.support.annotation.CallSuper
-import android.support.graphics.drawable.VectorDrawableCompat
-import android.support.v4.content.ContextCompat
-import android.support.v7.widget.RecyclerView
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
+import androidx.annotation.CallSuper
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.RecyclerView
+import androidx.vectordrawable.graphics.drawable.VectorDrawableCompat
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.util.getResourceColor
+import eu.kanade.tachiyomi.util.system.getResourceColor
 
 /**
- * An alternative implementation of [android.support.design.widget.NavigationView], without menu
+ * An alternative implementation of [com.google.android.material.navigation.NavigationView], without menu
  * inflation and allowing customizable items (multiple selections, custom views, etc).
  */
 open class ExtendedNavigationView @JvmOverloads constructor(
-        context: Context,
-        attrs: AttributeSet? = null,
-        defStyleAttr: Int = 0)
-    : SimpleNavigationView(context, attrs, defStyleAttr) {
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) :
+    SimpleNavigationView(context, attrs, defStyleAttr) {
 
     /**
      * Every item of the nav view. Generic items must belong to this list, custom items could be
@@ -46,15 +47,15 @@ open class ExtendedNavigationView @JvmOverloads constructor(
         /**
          * A checkbox belonging to a group. The group must handle selections and restrictions.
          */
-        class CheckboxGroup(resTitle: Int, override val group: Group, checked: Boolean = false)
-            : Checkbox(resTitle, checked), GroupedItem
+        class CheckboxGroup(resTitle: Int, override val group: Group, checked: Boolean = false) :
+            Checkbox(resTitle, checked), GroupedItem
 
         /**
          * A radio belonging to a group (a sole radio makes no sense). The group must handle
          * selections and restrictions.
          */
-        class Radio(val resTitle: Int, override val group: Group, var checked: Boolean = false)
-            : Item(), GroupedItem
+        class Radio(val resTitle: Int, override val group: Group, var checked: Boolean = false) :
+            Item(), GroupedItem
 
         /**
          * An item with which needs more than two states (selected/deselected).
@@ -83,8 +84,8 @@ open class ExtendedNavigationView @JvmOverloads constructor(
          * An item with which needs more than two states (selected/deselected) belonging to a group.
          * The group must handle selections and restrictions.
          */
-        abstract class MultiStateGroup(resTitle: Int, override val group: Group, state: Int = 0)
-            : MultiState(resTitle, state), GroupedItem
+        abstract class MultiStateGroup(resTitle: Int, override val group: Group, state: Int = 0) :
+            MultiState(resTitle, state), GroupedItem
 
         /**
          * A multistate item for sorting lists (unselected, ascending, descending).
@@ -105,7 +106,6 @@ open class ExtendedNavigationView @JvmOverloads constructor(
                     else -> null
                 }
             }
-
         }
     }
 
@@ -153,7 +153,6 @@ open class ExtendedNavigationView @JvmOverloads constructor(
          * selections of its items.
          */
         fun onItemClicked(item: Item)
-
     }
 
     /**
@@ -179,8 +178,7 @@ open class ExtendedNavigationView @JvmOverloads constructor(
 
         @CallSuper
         override fun getItemViewType(position: Int): Int {
-            val item = items[position]
-            return when (item) {
+            return when (items[position]) {
                 is Item.Header -> VIEW_TYPE_HEADER
                 is Item.Separator -> VIEW_TYPE_SEPARATOR
                 is Item.Radio -> VIEW_TYPE_RADIO
@@ -233,7 +231,5 @@ open class ExtendedNavigationView @JvmOverloads constructor(
         }
 
         abstract fun onItemClicked(item: Item)
-
     }
-
 }

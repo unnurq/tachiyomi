@@ -19,6 +19,7 @@ import com.bumptech.glide.load.DataSource
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.engine.GlideException
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
+import com.bumptech.glide.load.resource.gif.GifDrawable
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.bumptech.glide.request.transition.NoTransition
@@ -31,25 +32,25 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressBar
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig.ZoomType
-import eu.kanade.tachiyomi.util.ImageUtil
-import eu.kanade.tachiyomi.util.dpToPx
-import eu.kanade.tachiyomi.util.gone
-import eu.kanade.tachiyomi.util.visible
+import eu.kanade.tachiyomi.util.system.ImageUtil
+import eu.kanade.tachiyomi.util.system.dpToPx
+import eu.kanade.tachiyomi.util.view.gone
+import eu.kanade.tachiyomi.util.view.visible
 import eu.kanade.tachiyomi.widget.ViewPagerAdapter
+import java.io.InputStream
+import java.util.concurrent.TimeUnit
 import rx.Observable
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
 import rx.schedulers.Schedulers
-import java.io.InputStream
-import java.util.concurrent.TimeUnit
 
 /**
  * View of the ViewPager that contains a page of a chapter.
  */
 @SuppressLint("ViewConstructor")
 class PagerPageHolder(
-        val viewer: PagerViewer,
-        val page: ReaderPage
+    val viewer: PagerViewer,
+    val page: ReaderPage
 ) : FrameLayout(viewer.activity), ViewPagerAdapter.PositionableView {
 
     /**
@@ -126,8 +127,8 @@ class PagerPageHolder(
 
         val loader = page.chapter.pageLoader ?: return
         statusSubscription = loader.getPage(page)
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe { processStatus(it) }
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe { processStatus(it) }
     }
 
     /**
@@ -137,11 +138,11 @@ class PagerPageHolder(
         progressSubscription?.unsubscribe()
 
         progressSubscription = Observable.interval(100, TimeUnit.MILLISECONDS)
-            .map { page.progress }
-            .distinctUntilChanged()
-            .onBackpressureLatest()
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe { value -> progressBar.setProgress(value) }
+                .map { page.progress }
+                .distinctUntilChanged()
+                .onBackpressureLatest()
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe { value -> progressBar.setProgress(value) }
     }
 
     /**
@@ -233,25 +234,25 @@ class PagerPageHolder(
 
         var openStream: InputStream? = null
         readImageHeaderSubscription = Observable
-            .fromCallable {
-                val stream = streamFn().buffered(16)
-                openStream = stream
+                .fromCallable {
+                    val stream = streamFn().buffered(16)
+                    openStream = stream
 
-                ImageUtil.findImageType(stream) == ImageUtil.ImageType.GIF
-            }
-            .subscribeOn(Schedulers.io())
-            .observeOn(AndroidSchedulers.mainThread())
-            .doOnNext { isAnimated ->
-                if (!isAnimated) {
-                    initSubsamplingImageView().setImage(ImageSource.inputStream(openStream!!))
-                } else {
-                    initImageView().setImage(openStream!!)
+                    ImageUtil.findImageType(stream) == ImageUtil.ImageType.GIF
                 }
-            }
-            // Keep the Rx stream alive to close the input stream only when unsubscribed
-            .flatMap { Observable.never<Unit>() }
-            .doOnUnsubscribe { openStream?.close() }
-            .subscribe({}, {})
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .doOnNext { isAnimated ->
+                    if (!isAnimated) {
+                        initSubsamplingImageView().setImage(ImageSource.inputStream(openStream!!))
+                    } else {
+                        initImageView().setImage(openStream!!)
+                    }
+                }
+                // Keep the Rx stream alive to close the input stream only when unsubscribed
+                .flatMap { Observable.never<Unit>() }
+                .doOnUnsubscribe { openStream?.close() }
+                .subscribe({}, {})
     }
 
     /**
@@ -435,33 +436,35 @@ class PagerPageHolder(
      */
     private fun ImageView.setImage(stream: InputStream) {
         GlideApp.with(this)
-            .load(stream)
-            .skipMemoryCache(true)
-            .diskCacheStrategy(DiskCacheStrategy.NONE)
-            .transition(DrawableTransitionOptions.with(NoTransition.getFactory()))
-            .listener(object : RequestListener<Drawable> {
-                override fun onLoadFailed(
+                .load(stream)
+                .skipMemoryCache(true)
+                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                .transition(DrawableTransitionOptions.with(NoTransition.getFactory()))
+                .listener(object : RequestListener<Drawable> {
+                    override fun onLoadFailed(
                         e: GlideException?,
                         model: Any?,
                         target: Target<Drawable>?,
                         isFirstResource: Boolean
-                ): Boolean {
-                    onImageDecodeError()
-                    return false
-                }
+                    ): Boolean {
+                        onImageDecodeError()
+                        return false
+                    }
 
-                override fun onResourceReady(
+                    override fun onResourceReady(
                         resource: Drawable?,
                         model: Any?,
                         target: Target<Drawable>?,
                         dataSource: DataSource?,
                         isFirstResource: Boolean
-                ): Boolean {
-                    onImageDecoded()
-                    return false
-                }
-            })
-            .into(this)
+                    ): Boolean {
+                        if (resource is GifDrawable) {
+                            resource.setLoopCount(GifDrawable.LOOP_INTRINSIC)
+                        }
+                        onImageDecoded()
+                        return false
+                    }
+                })
+                .into(this)
     }
-
 }

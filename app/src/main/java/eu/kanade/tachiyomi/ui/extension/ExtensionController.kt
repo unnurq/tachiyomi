@@ -1,18 +1,27 @@
 package eu.kanade.tachiyomi.ui.extension
 
-import android.support.v7.widget.LinearLayoutManager
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.widget.SearchView
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.bluelinelabs.conductor.ControllerChangeHandler
+import com.bluelinelabs.conductor.ControllerChangeType
+import com.bluelinelabs.conductor.RouterTransaction
+import com.bluelinelabs.conductor.changehandler.FadeChangeHandler
 import com.jakewharton.rxbinding.support.v4.widget.refreshes
+import com.jakewharton.rxbinding.support.v7.widget.queryTextChanges
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.ui.base.controller.NucleusController
 import eu.kanade.tachiyomi.ui.base.controller.withFadeTransaction
-import kotlinx.android.synthetic.main.extension_controller.*
-
+import kotlinx.android.synthetic.main.extension_controller.ext_recycler
+import kotlinx.android.synthetic.main.extension_controller.ext_swipe_refresh
 
 /**
  * Controller to manage the catalogues available in the app.
@@ -27,6 +36,10 @@ open class ExtensionController : NucleusController<ExtensionPresenter>(),
      * Adapter containing the list of manga from the catalogue.
      */
     private var adapter: FlexibleAdapter<IFlexible<*>>? = null
+
+    private var extensions: List<ExtensionItem> = emptyList()
+
+    private var query = ""
 
     init {
         setHasOptionsMenu(true)
@@ -65,6 +78,25 @@ open class ExtensionController : NucleusController<ExtensionPresenter>(),
         super.onDestroyView(view)
     }
 
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.action_search -> expandActionViewFromInteraction = true
+            R.id.action_settings -> {
+                router.pushController((RouterTransaction.with(ExtensionFilterController()))
+                        .popChangeHandler(SettingsExtensionsFadeChangeHandler())
+                        .pushChangeHandler(FadeChangeHandler()))
+            }
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    override fun onChangeStarted(handler: ControllerChangeHandler, type: ControllerChangeType) {
+        super.onChangeStarted(handler, type)
+        if (!type.isPush && handler is SettingsExtensionsFadeChangeHandler) {
+            presenter.findAvailableExtensions()
+        }
+    }
+
     override fun onButtonClick(position: Int) {
         val extension = (adapter?.getItem(position) as? ExtensionItem)?.extension ?: return
         when (extension) {
@@ -84,7 +116,31 @@ open class ExtensionController : NucleusController<ExtensionPresenter>(),
         }
     }
 
-    override fun onItemClick(position: Int): Boolean {
+    override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {
+        inflater.inflate(R.menu.extension_main, menu)
+
+        val searchItem = menu.findItem(R.id.action_search)
+        val searchView = searchItem.actionView as SearchView
+        searchView.maxWidth = Int.MAX_VALUE
+
+        if (query.isNotEmpty()) {
+            searchItem.expandActionView()
+            searchView.setQuery(query, true)
+            searchView.clearFocus()
+        }
+
+        searchView.queryTextChanges()
+                .filter { router.backstack.lastOrNull()?.controller() == this }
+                .subscribeUntilDestroy {
+                    query = it.toString()
+                    drawExtensions()
+                }
+
+        // Fixes problem with the overflow icon showing up in lieu of search
+        searchItem.fixExpand(onExpand = { invalidateMenuOnExpand() })
+    }
+
+    override fun onItemClick(view: View, position: Int): Boolean {
         val extension = (adapter?.getItem(position) as? ExtensionItem)?.extension ?: return false
         if (extension is Extension.Installed) {
             openDetails(extension)
@@ -114,7 +170,19 @@ open class ExtensionController : NucleusController<ExtensionPresenter>(),
 
     fun setExtensions(extensions: List<ExtensionItem>) {
         ext_swipe_refresh?.isRefreshing = false
-        adapter?.updateDataSet(extensions)
+        this.extensions = extensions
+        drawExtensions()
+    }
+
+    fun drawExtensions() {
+        if (!query.isBlank()) {
+            adapter?.updateDataSet(
+                    extensions.filter {
+                        it.extension.name.contains(query, ignoreCase = true)
+                    })
+        } else {
+            adapter?.updateDataSet(extensions)
+        }
     }
 
     fun downloadUpdate(item: ExtensionItem) {
@@ -129,4 +197,5 @@ open class ExtensionController : NucleusController<ExtensionPresenter>(),
         presenter.uninstallExtension(pkgName)
     }
 
+    class SettingsExtensionsFadeChangeHandler : FadeChangeHandler()
 }

@@ -3,8 +3,15 @@ package eu.kanade.tachiyomi.data.backup
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import com.github.salomonbrys.kotson.*
-import com.google.gson.*
+import com.github.salomonbrys.kotson.fromJson
+import com.github.salomonbrys.kotson.registerTypeAdapter
+import com.github.salomonbrys.kotson.registerTypeHierarchyAdapter
+import com.github.salomonbrys.kotson.set
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.backup.BackupCreateService.Companion.BACKUP_CATEGORY
 import eu.kanade.tachiyomi.data.backup.BackupCreateService.Companion.BACKUP_CATEGORY_MASK
@@ -22,16 +29,29 @@ import eu.kanade.tachiyomi.data.backup.models.Backup.HISTORY
 import eu.kanade.tachiyomi.data.backup.models.Backup.MANGA
 import eu.kanade.tachiyomi.data.backup.models.Backup.TRACK
 import eu.kanade.tachiyomi.data.backup.models.DHistory
-import eu.kanade.tachiyomi.data.backup.serializer.*
+import eu.kanade.tachiyomi.data.backup.serializer.CategoryTypeAdapter
+import eu.kanade.tachiyomi.data.backup.serializer.ChapterTypeAdapter
+import eu.kanade.tachiyomi.data.backup.serializer.HistoryTypeAdapter
+import eu.kanade.tachiyomi.data.backup.serializer.MangaTypeAdapter
+import eu.kanade.tachiyomi.data.backup.serializer.TrackTypeAdapter
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
-import eu.kanade.tachiyomi.data.database.models.*
+import eu.kanade.tachiyomi.data.database.models.CategoryImpl
+import eu.kanade.tachiyomi.data.database.models.Chapter
+import eu.kanade.tachiyomi.data.database.models.ChapterImpl
+import eu.kanade.tachiyomi.data.database.models.History
+import eu.kanade.tachiyomi.data.database.models.Manga
+import eu.kanade.tachiyomi.data.database.models.MangaCategory
+import eu.kanade.tachiyomi.data.database.models.MangaImpl
+import eu.kanade.tachiyomi.data.database.models.Track
+import eu.kanade.tachiyomi.data.database.models.TrackImpl
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.data.preference.getOrDefault
 import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceManager
-import eu.kanade.tachiyomi.util.sendLocalBroadcast
-import eu.kanade.tachiyomi.util.syncChaptersWithSource
+import eu.kanade.tachiyomi.util.chapter.syncChaptersWithSource
+import eu.kanade.tachiyomi.util.system.sendLocalBroadcast
+import kotlin.math.max
 import rx.Observable
 import timber.log.Timber
 import uy.kohesive.injekt.injectLazy
@@ -204,7 +224,7 @@ class BackupManager(val context: Context, version: Int = CURRENT_VERSION) {
         if (options and BACKUP_CHAPTER_MASK == BACKUP_CHAPTER) {
             // Backup all the chapters
             val chapters = databaseHelper.getChapters(manga).executeAsBlocking()
-            if (!chapters.isEmpty()) {
+            if (chapters.isNotEmpty()) {
                 val chaptersJson = parser.toJsonTree(chapters)
                 if (chaptersJson.asJsonArray.size() > 0) {
                     entry[CHAPTERS] = chaptersJson
@@ -216,7 +236,7 @@ class BackupManager(val context: Context, version: Int = CURRENT_VERSION) {
         if (options and BACKUP_CATEGORY_MASK == BACKUP_CATEGORY) {
             // Backup categories for this manga
             val categoriesForManga = databaseHelper.getCategoriesForManga(manga).executeAsBlocking()
-            if (!categoriesForManga.isEmpty()) {
+            if (categoriesForManga.isNotEmpty()) {
                 val categoriesNames = categoriesForManga.map { it.name }
                 entry[CATEGORIES] = parser.toJsonTree(categoriesNames)
             }
@@ -225,7 +245,7 @@ class BackupManager(val context: Context, version: Int = CURRENT_VERSION) {
         // Check if user wants track information in backup
         if (options and BACKUP_TRACK_MASK == BACKUP_TRACK) {
             val tracks = databaseHelper.getTracks(manga).executeAsBlocking()
-            if (!tracks.isEmpty()) {
+            if (tracks.isNotEmpty()) {
                 entry[TRACK] = parser.toJsonTree(tracks)
             }
         }
@@ -233,7 +253,7 @@ class BackupManager(val context: Context, version: Int = CURRENT_VERSION) {
         // Check if user wants history information in backup
         if (options and BACKUP_HISTORY_MASK == BACKUP_HISTORY) {
             val historyForManga = databaseHelper.getHistoryByMangaId(manga.id!!).executeAsBlocking()
-            if (!historyForManga.isEmpty()) {
+            if (historyForManga.isNotEmpty()) {
                 val historyData = historyForManga.mapNotNull { history ->
                     val url = databaseHelper.getChapter(history.chapter_id).executeAsBlocking()?.url
                     url?.let { DHistory(url, history.last_read) }
@@ -344,7 +364,7 @@ class BackupManager(val context: Context, version: Int = CURRENT_VERSION) {
         }
 
         // Update database
-        if (!mangaCategoriesToUpdate.isEmpty()) {
+        if (mangaCategoriesToUpdate.isNotEmpty()) {
             val mangaAsList = ArrayList<Manga>()
             mangaAsList.add(manga)
             databaseHelper.deleteOldMangasCategories(mangaAsList).executeAsBlocking()
@@ -365,7 +385,7 @@ class BackupManager(val context: Context, version: Int = CURRENT_VERSION) {
             // Check if history already in database and update
             if (dbHistory != null) {
                 dbHistory.apply {
-                    last_read = Math.max(lastRead, dbHistory.last_read)
+                    last_read = max(lastRead, dbHistory.last_read)
                 }
                 historyToBeUpdated.add(dbHistory)
             } else {
@@ -408,7 +428,7 @@ class BackupManager(val context: Context, version: Int = CURRENT_VERSION) {
                         if (track.library_id != dbTrack.library_id) {
                             dbTrack.library_id = track.library_id
                         }
-                        dbTrack.last_chapter_read = Math.max(dbTrack.last_chapter_read, track.last_chapter_read)
+                        dbTrack.last_chapter_read = max(dbTrack.last_chapter_read, track.last_chapter_read)
                         isInDatabase = true
                         trackToUpdate.add(dbTrack)
                         break
@@ -422,7 +442,7 @@ class BackupManager(val context: Context, version: Int = CURRENT_VERSION) {
             }
         }
         // Update database
-        if (!trackToUpdate.isEmpty()) {
+        if (trackToUpdate.isNotEmpty()) {
             databaseHelper.insertTracks(trackToUpdate).executeAsBlocking()
         }
     }

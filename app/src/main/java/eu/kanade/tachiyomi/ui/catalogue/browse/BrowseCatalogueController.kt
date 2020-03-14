@@ -2,12 +2,22 @@ package eu.kanade.tachiyomi.ui.catalogue.browse
 
 import android.content.res.Configuration
 import android.os.Bundle
-import android.support.design.widget.Snackbar
-import android.support.v4.widget.DrawerLayout
-import android.support.v7.widget.*
-import android.view.*
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.appcompat.widget.SearchView
+import androidx.core.view.GravityCompat
+import androidx.drawerlayout.widget.DrawerLayout
+import androidx.recyclerview.widget.DividerItemDecoration
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.afollestad.materialdialogs.MaterialDialog
 import com.f2prateek.rx.preferences.Preference
+import com.google.android.material.snackbar.Snackbar
 import com.jakewharton.rxbinding.support.v7.widget.queryTextChangeEvents
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
@@ -23,18 +33,23 @@ import eu.kanade.tachiyomi.ui.base.controller.SecondaryDrawerController
 import eu.kanade.tachiyomi.ui.base.controller.withFadeTransaction
 import eu.kanade.tachiyomi.ui.library.ChangeMangaCategoriesDialog
 import eu.kanade.tachiyomi.ui.manga.MangaController
-import eu.kanade.tachiyomi.ui.manga.info.MangaWebViewController
-import eu.kanade.tachiyomi.util.*
+import eu.kanade.tachiyomi.ui.webview.WebViewActivity
+import eu.kanade.tachiyomi.util.system.connectivityManager
+import eu.kanade.tachiyomi.util.system.toast
+import eu.kanade.tachiyomi.util.view.gone
+import eu.kanade.tachiyomi.util.view.inflate
+import eu.kanade.tachiyomi.util.view.snack
+import eu.kanade.tachiyomi.util.view.visible
 import eu.kanade.tachiyomi.widget.AutofitRecyclerView
-import kotlinx.android.synthetic.main.catalogue_controller.*
-import kotlinx.android.synthetic.main.main_activity.*
+import java.util.concurrent.TimeUnit
+import kotlinx.android.synthetic.main.catalogue_controller.catalogue_view
+import kotlinx.android.synthetic.main.catalogue_controller.progress
+import kotlinx.android.synthetic.main.main_activity.drawer
 import rx.Observable
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
-import rx.subscriptions.Subscriptions
 import timber.log.Timber
 import uy.kohesive.injekt.injectLazy
-import java.util.concurrent.TimeUnit
 
 /**
  * Controller to manage the catalogues available in the app.
@@ -136,13 +151,13 @@ open class BrowseCatalogueController(bundle: Bundle) :
         this.navView = navView
         navView.setFilters(presenter.filterItems)
 
-        drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, Gravity.END)
+        drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_UNLOCKED, GravityCompat.END)
 
         navView.onSearchClicked = {
             val allDefault = presenter.sourceFilters == presenter.source.getFilterList()
             showProgressBar()
             adapter?.clear()
-            drawer.closeDrawer(Gravity.END)
+            drawer.closeDrawer(GravityCompat.END)
             presenter.setSourceFilter(if (allDefault) FilterList() else presenter.sourceFilters)
         }
 
@@ -175,6 +190,7 @@ open class BrowseCatalogueController(bundle: Bundle) :
             RecyclerView(view.context).apply {
                 id = R.id.recycler
                 layoutManager = LinearLayoutManager(context)
+                layoutParams = RecyclerView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                 addItemDecoration(DividerItemDecoration(context, DividerItemDecoration.VERTICAL))
             }
         } else {
@@ -201,7 +217,7 @@ open class BrowseCatalogueController(bundle: Bundle) :
         catalogue_view.addView(recycler, 1)
 
         if (oldPosition != RecyclerView.NO_POSITION) {
-            recycler.layoutManager.scrollToPosition(oldPosition)
+            recycler.layoutManager?.scrollToPosition(oldPosition)
         }
         this.recycler = recycler
     }
@@ -210,34 +226,38 @@ open class BrowseCatalogueController(bundle: Bundle) :
         inflater.inflate(R.menu.catalogue_list, menu)
 
         // Initialize search menu
-        menu.findItem(R.id.action_search).apply {
-            val searchView = actionView as SearchView
+        val searchItem = menu.findItem(R.id.action_search)
+        val searchView = searchItem.actionView as SearchView
 
-            val query = presenter.query
-            if (!query.isBlank()) {
-                expandActionView()
-                searchView.setQuery(query, true)
-                searchView.clearFocus()
-            }
-
-            val searchEventsObservable = searchView.queryTextChangeEvents()
-                    .skip(1)
-                    .share()
-            val writingObservable = searchEventsObservable
-                    .filter { !it.isSubmitted }
-                    .debounce(1250, TimeUnit.MILLISECONDS, AndroidSchedulers.mainThread())
-            val submitObservable = searchEventsObservable
-                    .filter { it.isSubmitted }
-
-            searchViewSubscription?.unsubscribe()
-            searchViewSubscription = Observable.merge(writingObservable, submitObservable)
-                    .map { it.queryText().toString() }
-                    .distinctUntilChanged()
-                    .subscribeUntilDestroy { searchWithQuery(it) }
-
-            untilDestroySubscriptions.add(
-                    Subscriptions.create { if (isActionViewExpanded) collapseActionView() })
+        val query = presenter.query
+        if (!query.isBlank()) {
+            searchItem.expandActionView()
+            searchView.setQuery(query, true)
+            searchView.clearFocus()
         }
+
+        val searchEventsObservable = searchView.queryTextChangeEvents()
+                .skip(1)
+                .filter { router.backstack.lastOrNull()?.controller() == this@BrowseCatalogueController }
+                .share()
+        val writingObservable = searchEventsObservable
+                .filter { !it.isSubmitted }
+                .debounce(1250, TimeUnit.MILLISECONDS, AndroidSchedulers.mainThread())
+        val submitObservable = searchEventsObservable
+                .filter { it.isSubmitted }
+
+        searchViewSubscription?.unsubscribe()
+        searchViewSubscription = Observable.merge(writingObservable, submitObservable)
+                .map { it.queryText().toString() }
+                .subscribeUntilDestroy { searchWithQuery(it) }
+
+        searchItem.fixExpand(
+                onExpand = { invalidateMenuOnExpand() },
+                onCollapse = {
+                    searchWithQuery("")
+                    true
+                }
+        )
 
         // Setup filters button
         menu.findItem(R.id.action_set_filter).apply {
@@ -265,32 +285,25 @@ open class BrowseCatalogueController(bundle: Bundle) :
         super.onPrepareOptionsMenu(menu)
 
         val isHttpSource = presenter.source is HttpSource
-        menu.findItem(R.id.action_open_in_browser).isVisible = isHttpSource
         menu.findItem(R.id.action_open_in_web_view).isVisible = isHttpSource
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.action_search -> expandActionViewFromInteraction = true
             R.id.action_display_mode -> swapDisplayMode()
-            R.id.action_set_filter -> navView?.let { activity?.drawer?.openDrawer(Gravity.END) }
-            R.id.action_open_in_browser -> openInBrowser()
+            R.id.action_set_filter -> navView?.let { activity?.drawer?.openDrawer(GravityCompat.END) }
             R.id.action_open_in_web_view -> openInWebView()
-            else -> return super.onOptionsItemSelected(item)
         }
-        return true
-    }
-
-    private fun openInBrowser() {
-        val source = presenter.source as? HttpSource ?: return
-
-        activity?.openInBrowser(source.baseUrl)
+        return super.onOptionsItemSelected(item)
     }
 
     private fun openInWebView() {
         val source = presenter.source as? HttpSource ?: return
 
-        router.pushController(MangaWebViewController(source.id, source.baseUrl)
-                .withFadeTransaction())
+        val activity = activity ?: return
+        val intent = WebViewActivity.newIntent(activity, source.id, source.baseUrl, presenter.source.name)
+        startActivity(intent)
     }
 
     /**
@@ -302,11 +315,6 @@ open class BrowseCatalogueController(bundle: Bundle) :
         // If text didn't change, do nothing
         if (presenter.query == newQuery)
             return
-
-        // FIXME dirty fix to restore the toolbar buttons after closing search mode.
-        if (newQuery == "") {
-            activity?.invalidateOptionsMenu()
-        }
 
         showProgressBar()
         adapter?.clear()
@@ -341,19 +349,23 @@ open class BrowseCatalogueController(bundle: Bundle) :
         adapter.onLoadMoreComplete(null)
         hideProgressBar()
 
-        val message = if (error is NoResultsException) "No results found" else (error.message ?: "")
-
         snack?.dismiss()
-        snack = catalogue_view?.snack(message, Snackbar.LENGTH_INDEFINITE) {
-            setAction(R.string.action_retry) {
-                // If not the first page, show bottom progress bar.
-                if (adapter.mainItemCount > 0) {
-                    val item = progressItem ?: return@setAction
-                    adapter.addScrollableFooterWithDelay(item, 0, true)
-                } else {
-                    showProgressBar()
+
+        if (catalogue_view != null) {
+            val message = if (error is NoResultsException) catalogue_view.context.getString(R.string.no_results_found) else (error.message
+                    ?: "")
+
+            snack = catalogue_view.snack(message, Snackbar.LENGTH_INDEFINITE) {
+                setAction(R.string.action_retry) {
+                    // If not the first page, show bottom progress bar.
+                    if (adapter.mainItemCount > 0) {
+                        val item = progressItem ?: return@setAction
+                        adapter.addScrollableFooterWithDelay(item, 0, true)
+                    } else {
+                        showProgressBar()
+                    }
+                    presenter.requestNext()
                 }
-                presenter.requestNext()
             }
         }
     }
@@ -464,7 +476,7 @@ open class BrowseCatalogueController(bundle: Bundle) :
      * @param position the position of the element clicked.
      * @return true if the item should be selected, false otherwise.
      */
-    override fun onItemClick(position: Int): Boolean {
+    override fun onItemClick(view: View, position: Int): Boolean {
         val item = adapter?.getItem(position) as? CatalogueItem ?: return false
         router.pushController(MangaController(item.manga, true).withFadeTransaction())
 
@@ -483,6 +495,7 @@ open class BrowseCatalogueController(bundle: Bundle) :
     override fun onItemLongClick(position: Int) {
         val activity = activity ?: return
         val manga = (adapter?.getItem(position) as? CatalogueItem?)?.manga ?: return
+
         if (manga.favorite) {
             MaterialDialog.Builder(activity)
                     .items(activity.getString(R.string.remove_from_library))
@@ -491,32 +504,46 @@ open class BrowseCatalogueController(bundle: Bundle) :
                             0 -> {
                                 presenter.changeMangaFavorite(manga)
                                 adapter?.notifyItemChanged(position)
-                                activity?.toast(activity?.getString(R.string.manga_removed_library))
+                                activity.toast(activity.getString(R.string.manga_removed_library))
                             }
                         }
                     }.show()
         } else {
-            presenter.changeMangaFavorite(manga)
-            adapter?.notifyItemChanged(position)
-
             val categories = presenter.getCategories()
-            val defaultCategory = categories.find { it.id == preferences.defaultCategory() }
-            if (defaultCategory != null) {
-                presenter.moveMangaToCategory(manga, defaultCategory)
-            } else if (categories.size <= 1) { // default or the one from the user
-                presenter.moveMangaToCategory(manga, categories.firstOrNull())
-            } else {
-                val ids = presenter.getMangaCategoryIds(manga)
-                val preselected = ids.mapNotNull { id ->
-                    categories.indexOfFirst { it.id == id }.takeIf { it != -1 }
-                }.toTypedArray()
+            val defaultCategoryId = preferences.defaultCategory()
+            val defaultCategory = categories.find { it.id == defaultCategoryId }
 
-                ChangeMangaCategoriesDialog(this, listOf(manga), categories, preselected)
-                        .showDialog(router)
+            when {
+                // Default category set
+                defaultCategory != null -> {
+                    presenter.moveMangaToCategory(manga, defaultCategory)
+
+                    presenter.changeMangaFavorite(manga)
+                    adapter?.notifyItemChanged(position)
+                    activity.toast(activity.getString(R.string.manga_added_library))
+                }
+
+                // Automatic 'Default' or no categories
+                defaultCategoryId == 0 || categories.isEmpty() -> {
+                    presenter.moveMangaToCategory(manga, null)
+
+                    presenter.changeMangaFavorite(manga)
+                    adapter?.notifyItemChanged(position)
+                    activity.toast(activity.getString(R.string.manga_added_library))
+                }
+
+                // Choose a category
+                else -> {
+                    val ids = presenter.getMangaCategoryIds(manga)
+                    val preselected = ids.mapNotNull { id ->
+                        categories.indexOfFirst { it.id == id }.takeIf { it != -1 }
+                    }.toTypedArray()
+
+                    ChangeMangaCategoriesDialog(this, listOf(manga), categories, preselected)
+                            .showDialog(router)
+                }
             }
-            activity?.toast(activity?.getString(R.string.manga_added_library))
         }
-
     }
 
     /**
@@ -527,11 +554,18 @@ open class BrowseCatalogueController(bundle: Bundle) :
      */
     override fun updateCategoriesForMangas(mangas: List<Manga>, categories: List<Category>) {
         val manga = mangas.firstOrNull() ?: return
+
+        presenter.changeMangaFavorite(manga)
         presenter.updateMangaCategories(manga, categories)
+
+        val position = adapter?.currentItems?.indexOfFirst { it -> (it as CatalogueItem).manga.id == manga.id }
+        if (position != null) {
+            adapter?.notifyItemChanged(position)
+        }
+        activity?.toast(activity?.getString(R.string.manga_added_library))
     }
 
     protected companion object {
         const val SOURCE_ID_KEY = "sourceId"
     }
-
 }

@@ -1,11 +1,11 @@
 package eu.kanade.tachiyomi.widget.preference
 
 import android.content.Context
-import android.support.v7.preference.Preference
-import android.support.v7.preference.PreferenceViewHolder
 import android.util.AttributeSet
+import androidx.preference.Preference
+import androidx.preference.PreferenceViewHolder
 import eu.kanade.tachiyomi.R
-import kotlinx.android.synthetic.main.pref_widget_imageview.view.*
+import kotlinx.android.synthetic.main.pref_widget_imageview.view.image_view
 
 class LoginPreference @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
         Preference(context, attrs) {
@@ -23,8 +23,7 @@ class LoginPreference @JvmOverloads constructor(context: Context, attrs: Attribu
             R.drawable.ic_done_green_24dp)
     }
 
-    override public fun notifyChanged() {
+    public override fun notifyChanged() {
         super.notifyChanged()
     }
-
 }

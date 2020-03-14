@@ -2,16 +2,16 @@ package eu.kanade.tachiyomi.ui.reader
 
 import android.content.Context
 import android.graphics.Canvas
-import android.support.v7.widget.AppCompatSeekBar
 import android.util.AttributeSet
 import android.view.MotionEvent
+import androidx.appcompat.widget.AppCompatSeekBar
 
 /**
  * Seekbar to show current chapter progress.
  */
 class ReaderSeekBar @JvmOverloads constructor(
-        context: Context,
-        attrs: AttributeSet? = null
+    context: Context,
+    attrs: AttributeSet? = null
 ) : AppCompatSeekBar(context, attrs) {
 
     /**
@@ -41,5 +41,4 @@ class ReaderSeekBar @JvmOverloads constructor(
         }
         return super.onTouchEvent(event)
     }
-
 }

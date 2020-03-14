@@ -1,15 +1,15 @@
 package eu.kanade.tachiyomi.ui.catalogue.global_search
 
-import android.support.v7.widget.LinearLayoutManager
 import android.view.View
-import eu.kanade.tachiyomi.R
+import androidx.recyclerview.widget.LinearLayoutManager
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.ui.base.holder.BaseFlexibleViewHolder
-import eu.kanade.tachiyomi.util.getResourceColor
-import eu.kanade.tachiyomi.util.gone
-import eu.kanade.tachiyomi.util.setVectorCompat
-import eu.kanade.tachiyomi.util.visible
-import kotlinx.android.synthetic.main.catalogue_global_search_controller_card.*
+import eu.kanade.tachiyomi.util.view.gone
+import eu.kanade.tachiyomi.util.view.visible
+import kotlinx.android.synthetic.main.catalogue_global_search_controller_card.progress
+import kotlinx.android.synthetic.main.catalogue_global_search_controller_card.recycler
+import kotlinx.android.synthetic.main.catalogue_global_search_controller_card.source_card
+import kotlinx.android.synthetic.main.catalogue_global_search_controller_card.title
 
 /**
  * Holder that binds the [CatalogueSearchItem] containing catalogue cards.
@@ -31,9 +31,6 @@ class CatalogueSearchHolder(view: View, val adapter: CatalogueSearchAdapter) :
         // Set layout horizontal.
         recycler.layoutManager = LinearLayoutManager(view.context, LinearLayoutManager.HORIZONTAL, false)
         recycler.adapter = mangaAdapter
-
-        nothing_found_icon.setVectorCompat(R.drawable.ic_search_black_112dp,
-                view.context.getResourceColor(android.R.attr.textColorHint))
     }
 
     /**
@@ -54,15 +51,15 @@ class CatalogueSearchHolder(view: View, val adapter: CatalogueSearchAdapter) :
         when {
             results == null -> {
                 progress.visible()
-                nothing_found.gone()
+                showHolder()
             }
             results.isEmpty() -> {
                 progress.gone()
-                nothing_found.visible()
+                hideHolder()
             }
             else -> {
                 progress.gone()
-                nothing_found.gone()
+                showHolder()
             }
         }
         if (results !== lastBoundResults) {
@@ -95,5 +92,15 @@ class CatalogueSearchHolder(view: View, val adapter: CatalogueSearchAdapter) :
         }
 
         return null
+    }
+
+    private fun showHolder() {
+        title.visible()
+        source_card.visible()
+    }
+
+    private fun hideHolder() {
+        title.gone()
+        source_card.gone()
     }
 }

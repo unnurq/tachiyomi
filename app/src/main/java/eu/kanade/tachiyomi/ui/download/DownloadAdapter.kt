@@ -1,10 +1,10 @@
 package eu.kanade.tachiyomi.ui.download
 
-import android.support.v7.widget.RecyclerView
 import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.download.model.Download
-import eu.kanade.tachiyomi.util.inflate
+import eu.kanade.tachiyomi.util.view.inflate
 
 /**
  * Adapter storing a list of downloads.
@@ -68,5 +68,4 @@ class DownloadAdapter : RecyclerView.Adapter<DownloadHolder>() {
         val download = items[position]
         holder.onSetValues(download)
     }
-
 }

@@ -7,10 +7,10 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Track
 import eu.kanade.tachiyomi.data.track.TrackService
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
+import java.text.DecimalFormat
 import rx.Completable
 import rx.Observable
 import uy.kohesive.injekt.injectLazy
-import java.text.DecimalFormat
 
 class Kitsu(private val context: Context, id: Int) : TrackService(id) {
 
@@ -34,27 +34,29 @@ class Kitsu(private val context: Context, id: Int) : TrackService(id) {
     private val api by lazy { KitsuApi(client, interceptor) }
 
     override fun getLogo(): Int {
-        return R.drawable.kitsu
+        return R.drawable.tracker_kitsu
     }
 
     override fun getLogoColor(): Int {
-        return Color.rgb(51, 37, 50)
+        return Color.rgb(0x33, 0x25, 0x32)
     }
 
     override fun getStatusList(): List<Int> {
-        return listOf(READING, COMPLETED, ON_HOLD, DROPPED, PLAN_TO_READ)
+        return listOf(READING, PLAN_TO_READ, COMPLETED, ON_HOLD, DROPPED)
     }
 
     override fun getStatus(status: Int): String = with(context) {
         when (status) {
-            READING -> getString(R.string.reading)
+            READING -> getString(R.string.currently_reading)
+            PLAN_TO_READ -> getString(R.string.want_to_read)
             COMPLETED -> getString(R.string.completed)
             ON_HOLD -> getString(R.string.on_hold)
             DROPPED -> getString(R.string.dropped)
-            PLAN_TO_READ -> getString(R.string.plan_to_read)
             else -> ""
         }
     }
+
+    override fun getCompletionStatus(): Int = COMPLETED
 
     override fun getScoreList(): List<String> {
         val df = DecimalFormat("0.#")
@@ -75,10 +77,6 @@ class Kitsu(private val context: Context, id: Int) : TrackService(id) {
     }
 
     override fun update(track: Track): Observable<Track> {
-        if (track.total_chapters != 0 && track.last_chapter_read == track.total_chapters) {
-            track.status = COMPLETED
-        }
-
         return api.updateLibManga(track)
     }
 
@@ -140,5 +138,4 @@ class Kitsu(private val context: Context, id: Int) : TrackService(id) {
             null
         }
     }
-
 }

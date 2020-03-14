@@ -6,8 +6,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.LoadResult
-import eu.kanade.tachiyomi.util.launchNow
-import kotlinx.coroutines.experimental.async
+import eu.kanade.tachiyomi.util.lang.launchNow
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 
 /**
  * Broadcast receiver that listens for the system's packages installed, updated or removed, and only
@@ -28,12 +31,13 @@ internal class ExtensionInstallReceiver(private val listener: Listener) :
     /**
      * Returns the intent filter this receiver should subscribe to.
      */
-    private val filter get() = IntentFilter().apply {
-        addAction(Intent.ACTION_PACKAGE_ADDED)
-        addAction(Intent.ACTION_PACKAGE_REPLACED)
-        addAction(Intent.ACTION_PACKAGE_REMOVED)
-        addDataScheme("package")
-    }
+    private val filter
+        get() = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REPLACED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addDataScheme("package")
+        }
 
     /**
      * Called when one of the events of the [filter] is received. When the package is an extension,
@@ -58,7 +62,8 @@ internal class ExtensionInstallReceiver(private val listener: Listener) :
                     when (result) {
                         is LoadResult.Success -> listener.onExtensionUpdated(result.extension)
                         // Not needed as a package can't be upgraded if the signature is different
-                        is LoadResult.Untrusted -> {}
+                        is LoadResult.Untrusted -> {
+                        }
                     }
                 }
             }
@@ -89,9 +94,9 @@ internal class ExtensionInstallReceiver(private val listener: Listener) :
      * @param intent The intent containing the package name of the extension.
      */
     private suspend fun getExtensionFromIntent(context: Context, intent: Intent?): LoadResult {
-        val pkgName = getPackageNameFromIntent(intent) ?:
-                return LoadResult.Error("Package name not found")
-        return async { ExtensionLoader.loadExtensionFromPkgName(context, pkgName) }.await()
+        val pkgName = getPackageNameFromIntent(intent)
+                ?: return LoadResult.Error("Package name not found")
+        return GlobalScope.async(Dispatchers.Default, CoroutineStart.DEFAULT) { ExtensionLoader.loadExtensionFromPkgName(context, pkgName) }.await()
     }
 
     /**
@@ -110,5 +115,4 @@ internal class ExtensionInstallReceiver(private val listener: Listener) :
         fun onExtensionUntrusted(extension: Extension.Untrusted)
         fun onPackageUninstalled(pkgName: String)
     }
-
 }

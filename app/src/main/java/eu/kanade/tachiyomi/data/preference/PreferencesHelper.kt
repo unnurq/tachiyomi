@@ -1,20 +1,40 @@
 package eu.kanade.tachiyomi.data.preference
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Environment
-import android.preference.PreferenceManager
+import androidx.preference.PreferenceManager
 import com.f2prateek.rx.preferences.Preference
 import com.f2prateek.rx.preferences.RxSharedPreferences
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.data.track.TrackService
-import eu.kanade.tachiyomi.source.Source
-import java.io.File
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
+import eu.kanade.tachiyomi.data.preference.PreferenceValues as Values
+import eu.kanade.tachiyomi.data.track.TrackService
+import java.io.File
+import java.text.DateFormat
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 fun <T> Preference<T>.getOrDefault(): T = get() ?: defaultValue()!!
 
 fun Preference<Boolean>.invert(): Boolean = getOrDefault().let { set(!it); !it }
+
+private class DateFormatConverter : Preference.Adapter<DateFormat> {
+    override fun get(key: String, preferences: SharedPreferences): DateFormat {
+        val dateFormat = preferences.getString(Keys.dateFormat, "")!!
+
+        if (dateFormat != "") {
+            return SimpleDateFormat(dateFormat, Locale.getDefault())
+        }
+
+        return DateFormat.getDateInstance(DateFormat.SHORT)
+    }
+
+    override fun set(key: String, value: DateFormat, editor: SharedPreferences.Editor) {
+        // No-op
+    }
+}
 
 class PreferencesHelper(val context: Context) {
 
@@ -31,9 +51,21 @@ class PreferencesHelper(val context: Context) {
 
     fun startScreen() = prefs.getInt(Keys.startScreen, 1)
 
+    fun useBiometricLock() = rxPrefs.getBoolean(Keys.useBiometricLock, false)
+
+    fun lockAppAfter() = rxPrefs.getInteger(Keys.lockAppAfter, 0)
+
+    fun lastAppUnlock() = rxPrefs.getLong(Keys.lastAppUnlock, 0)
+
+    fun secureScreen() = rxPrefs.getBoolean(Keys.secureScreen, false)
+
+    fun hideNotificationContent() = prefs.getBoolean(Keys.hideNotificationContent, false)
+
     fun clear() = prefs.edit().clear().apply()
 
-    fun theme() = prefs.getInt(Keys.theme, 1)
+    fun themeMode() = rxPrefs.getString(Keys.themeMode, Values.THEME_MODE_SYSTEM)
+
+    fun themeDark() = prefs.getString(Keys.themeDark, Values.THEME_DARK_DEFAULT)
 
     fun rotation() = rxPrefs.getInteger(Keys.rotation, 1)
 
@@ -46,6 +78,8 @@ class PreferencesHelper(val context: Context) {
     fun trueColor() = rxPrefs.getBoolean(Keys.trueColor, false)
 
     fun fullscreen() = rxPrefs.getBoolean(Keys.fullscreen, true)
+
+    fun cutoutShort() = rxPrefs.getBoolean(Keys.cutoutShort, true)
 
     fun keepScreenOn() = rxPrefs.getBoolean(Keys.keepScreenOn, true)
 
@@ -70,6 +104,8 @@ class PreferencesHelper(val context: Context) {
     fun cropBorders() = rxPrefs.getBoolean(Keys.cropBorders, false)
 
     fun cropBordersWebtoon() = rxPrefs.getBoolean(Keys.cropBordersWebtoon, false)
+
+    fun padPagesVertWebtoon() = rxPrefs.getBoolean(Keys.padPagesVertWebtoon, false)
 
     fun readWithTapping() = rxPrefs.getBoolean(Keys.readWithTapping, true)
 
@@ -99,18 +135,7 @@ class PreferencesHelper(val context: Context) {
 
     fun catalogueAsList() = rxPrefs.getBoolean(Keys.catalogueAsList, false)
 
-    fun enabledLanguages() = rxPrefs.getStringSet(Keys.enabledLanguages, setOf("en"))
-
-    fun sourceUsername(source: Source) = prefs.getString(Keys.sourceUsername(source.id), "")
-
-    fun sourcePassword(source: Source) = prefs.getString(Keys.sourcePassword(source.id), "")
-
-    fun setSourceCredentials(source: Source, username: String, password: String) {
-        prefs.edit()
-                .putString(Keys.sourceUsername(source.id), username)
-                .putString(Keys.sourcePassword(source.id), password)
-                .apply()
-    }
+    fun enabledLanguages() = rxPrefs.getStringSet(Keys.enabledLanguages, setOf("en", Locale.getDefault().language))
 
     fun trackUsername(sync: TrackService) = prefs.getString(Keys.trackUsername(sync.id), "")
 
@@ -128,6 +153,8 @@ class PreferencesHelper(val context: Context) {
     fun anilistScoreType() = rxPrefs.getString("anilist_score_type", "POINT_10")
 
     fun backupsDirectory() = rxPrefs.getString(Keys.backupDirectory, defaultBackupDir.toString())
+
+    fun dateFormat() = rxPrefs.getObject(Keys.dateFormat, DateFormat.getDateInstance(DateFormat.SHORT), DateFormatConverter())
 
     fun downloadsDirectory() = rxPrefs.getString(Keys.downloadsDirectory, defaultDownloadsDir.toString())
 
@@ -147,6 +174,8 @@ class PreferencesHelper(val context: Context) {
 
     fun libraryUpdateCategories() = rxPrefs.getStringSet(Keys.libraryUpdateCategories, emptySet())
 
+    fun libraryUpdatePrioritization() = rxPrefs.getInteger(Keys.libraryUpdatePrioritization, 0)
+
     fun libraryAsList() = rxPrefs.getBoolean(Keys.libraryAsList, false)
 
     fun downloadBadge() = rxPrefs.getBoolean(Keys.downloadBadge, false)
@@ -161,7 +190,7 @@ class PreferencesHelper(val context: Context) {
 
     fun librarySortingAscending() = rxPrefs.getBoolean("library_sorting_ascending", true)
 
-    fun automaticUpdates() = prefs.getBoolean(Keys.automaticUpdates, false)
+    fun automaticUpdates() = prefs.getBoolean(Keys.automaticUpdates, true)
 
     fun hiddenCatalogues() = rxPrefs.getStringSet("hidden_catalogues", emptySet())
 
@@ -178,4 +207,6 @@ class PreferencesHelper(val context: Context) {
     fun migrateFlags() = rxPrefs.getInteger("migrate_flags", Int.MAX_VALUE)
 
     fun trustedSignatures() = rxPrefs.getStringSet("trusted_signatures", emptySet())
+
+    fun alwaysShowChapterTransition() = rxPrefs.getBoolean(Keys.alwaysShowChapterTransition, true)
 }

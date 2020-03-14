@@ -2,10 +2,10 @@ package eu.kanade.tachiyomi.ui.migration
 
 import android.app.Dialog
 import android.os.Bundle
-import android.support.v7.widget.LinearLayoutManager
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.afollestad.materialdialogs.MaterialDialog
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
@@ -15,7 +15,7 @@ import eu.kanade.tachiyomi.ui.base.controller.DialogController
 import eu.kanade.tachiyomi.ui.base.controller.NucleusController
 import eu.kanade.tachiyomi.ui.base.controller.popControllerWithTag
 import eu.kanade.tachiyomi.ui.base.controller.withFadeTransaction
-import kotlinx.android.synthetic.main.migration_controller.*
+import kotlinx.android.synthetic.main.migration_controller.migration_recycler
 
 class MigrationController : NucleusController<MigrationPresenter>(),
         FlexibleAdapter.OnItemClickListener,
@@ -91,7 +91,7 @@ class MigrationController : NucleusController<MigrationPresenter>(),
         }
     }
 
-    override fun onItemClick(position: Int): Boolean {
+    override fun onItemClick(view: View, position: Int): Boolean {
         val item = adapter?.getItem(position) ?: return false
 
         if (item is MangaItem) {
@@ -106,7 +106,7 @@ class MigrationController : NucleusController<MigrationPresenter>(),
     }
 
     override fun onSelectClick(position: Int) {
-        onItemClick(position)
+        onItemClick(view!!, position)
     }
 
     fun migrateManga(prevManga: Manga, manga: Manga) {
@@ -131,5 +131,4 @@ class MigrationController : NucleusController<MigrationPresenter>(),
     companion object {
         const val LOADING_DIALOG_TAG = "LoadingDialog"
     }
-
 }

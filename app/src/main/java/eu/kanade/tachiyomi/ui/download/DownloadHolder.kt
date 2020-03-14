@@ -3,7 +3,10 @@ package eu.kanade.tachiyomi.ui.download
 import android.view.View
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.ui.base.holder.BaseViewHolder
-import kotlinx.android.synthetic.main.download_item.view.*
+import kotlinx.android.synthetic.main.download_item.view.chapter_title
+import kotlinx.android.synthetic.main.download_item.view.download_progress
+import kotlinx.android.synthetic.main.download_item.view.download_progress_text
+import kotlinx.android.synthetic.main.download_item.view.manga_title
 
 /**
  * Class used to hold the data of a download.
@@ -62,5 +65,4 @@ class DownloadHolder(private val view: View) : BaseViewHolder(view) {
         val pages = download.pages ?: return
         view.download_progress_text.text = "${download.downloadedImages}/${pages.size}"
     }
-
 }

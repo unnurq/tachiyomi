@@ -12,11 +12,15 @@ import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.ui.base.controller.DialogController
 import eu.kanade.tachiyomi.widget.SimpleTextWatcher
-import kotlinx.android.synthetic.main.pref_account_login.view.*
+import kotlinx.android.synthetic.main.pref_account_login.view.login
+import kotlinx.android.synthetic.main.pref_account_login.view.password
+import kotlinx.android.synthetic.main.pref_account_login.view.show_password
+import kotlinx.android.synthetic.main.pref_account_login.view.username_label
 import rx.Subscription
 import uy.kohesive.injekt.injectLazy
 
-abstract class LoginDialogPreference(bundle: Bundle? = null) : DialogController(bundle) {
+abstract class LoginDialogPreference(private val usernameLabel: String? = null, bundle: Bundle? = null) :
+        DialogController(bundle) {
 
     var v: View? = null
         private set
@@ -25,7 +29,7 @@ abstract class LoginDialogPreference(bundle: Bundle? = null) : DialogController(
 
     var requestSubscription: Subscription? = null
 
-    override fun onCreateDialog(savedState: Bundle?): Dialog {
+    override fun onCreateDialog(savedViewState: Bundle?): Dialog {
         val dialog = MaterialDialog.Builder(activity!!)
                 .customView(R.layout.pref_account_login, false)
                 .negativeText(android.R.string.cancel)
@@ -45,6 +49,10 @@ abstract class LoginDialogPreference(bundle: Bundle? = null) : DialogController(
                     password.transformationMethod = PasswordTransformationMethod()
             }
 
+            if (!usernameLabel.isNullOrEmpty()) {
+                username_label.hint = usernameLabel
+            }
+
             login.setMode(ActionProcessButton.Mode.ENDLESS)
             login.setOnClickListener { checkLogin() }
 
@@ -60,7 +68,6 @@ abstract class LoginDialogPreference(bundle: Bundle? = null) : DialogController(
                 }
             })
         }
-
     }
 
     override fun onChangeStarted(handler: ControllerChangeHandler, type: ControllerChangeType) {
@@ -77,5 +84,4 @@ abstract class LoginDialogPreference(bundle: Bundle? = null) : DialogController(
     protected abstract fun checkLogin()
 
     protected abstract fun setCredentialsOnView(view: View)
-
 }

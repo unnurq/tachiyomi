@@ -1,8 +1,10 @@
 package eu.kanade.tachiyomi.ui.extension
 
 import android.view.View
+import androidx.recyclerview.widget.RecyclerView
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.AbstractSectionableItem
+import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.extension.model.Extension
 import eu.kanade.tachiyomi.extension.model.InstallStep
@@ -14,9 +16,11 @@ import eu.kanade.tachiyomi.source.CatalogueSource
  * @param source Instance of [CatalogueSource] containing source information.
  * @param header The header for this item.
  */
-data class ExtensionItem(val extension: Extension,
-                         val header: ExtensionGroupItem? = null,
-                         val installStep: InstallStep? = null) :
+data class ExtensionItem(
+    val extension: Extension,
+    val header: ExtensionGroupItem? = null,
+    val installStep: InstallStep? = null
+) :
         AbstractSectionableItem<ExtensionHolder, ExtensionGroupItem>(header) {
 
     /**
@@ -29,15 +33,19 @@ data class ExtensionItem(val extension: Extension,
     /**
      * Creates a new view holder for this item.
      */
-    override fun createViewHolder(view: View, adapter: FlexibleAdapter<*>): ExtensionHolder {
+    override fun createViewHolder(view: View, adapter: FlexibleAdapter<IFlexible<RecyclerView.ViewHolder>>): ExtensionHolder {
         return ExtensionHolder(view, adapter as ExtensionAdapter)
     }
 
     /**
      * Binds this item to the given view holder.
      */
-    override fun bindViewHolder(adapter: FlexibleAdapter<*>, holder: ExtensionHolder,
-                                position: Int, payloads: List<Any?>?) {
+    override fun bindViewHolder(
+        adapter: FlexibleAdapter<IFlexible<RecyclerView.ViewHolder>>,
+        holder: ExtensionHolder,
+        position: Int,
+        payloads: List<Any?>?
+    ) {
 
         if (payloads == null || payloads.isEmpty()) {
             holder.bind(this)
@@ -55,5 +63,4 @@ data class ExtensionItem(val extension: Extension,
     override fun hashCode(): Int {
         return extension.pkgName.hashCode()
     }
-
 }

@@ -10,7 +10,7 @@ import eu.kanade.tachiyomi.ui.base.controller.DialogController
 import eu.kanade.tachiyomi.widget.DialogCheckboxView
 
 class DeleteLibraryMangasDialog<T>(bundle: Bundle? = null) :
-        DialogController(bundle) where T : Controller, T: DeleteLibraryMangasDialog.Listener {
+        DialogController(bundle) where T : Controller, T : DeleteLibraryMangasDialog.Listener {
 
     private var mangas = emptyList<Manga>()
 
@@ -28,8 +28,8 @@ class DeleteLibraryMangasDialog<T>(bundle: Bundle? = null) :
         return MaterialDialog.Builder(activity!!)
                 .title(R.string.action_remove)
                 .customView(view, true)
-                .positiveText(android.R.string.yes)
-                .negativeText(android.R.string.no)
+                .positiveText(android.R.string.ok)
+                .negativeText(android.R.string.cancel)
                 .onPositive { _, _ ->
                     val deleteChapters = view.isChecked()
                     (targetController as? Listener)?.deleteMangasFromLibrary(mangas, deleteChapters)

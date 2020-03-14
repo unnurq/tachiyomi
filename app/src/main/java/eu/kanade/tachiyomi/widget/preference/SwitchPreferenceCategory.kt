@@ -1,28 +1,27 @@
 package eu.kanade.tachiyomi.widget.preference
 
-import android.annotation.TargetApi
 import android.content.Context
 import android.content.res.TypedArray
-import android.os.Build.VERSION_CODES.ICE_CREAM_SANDWICH
-import android.support.v7.preference.PreferenceCategory
-import android.support.v7.preference.PreferenceViewHolder
-import android.support.v7.widget.SwitchCompat
 import android.util.AttributeSet
 import android.view.View
 import android.widget.Checkable
 import android.widget.CompoundButton
 import android.widget.TextView
+import androidx.appcompat.widget.SwitchCompat
+import androidx.preference.PreferenceCategory
+import androidx.preference.PreferenceViewHolder
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.util.getResourceColor
+import eu.kanade.tachiyomi.util.system.getResourceColor
 
 class SwitchPreferenceCategory @JvmOverloads constructor(
-        context: Context,
-        attrs: AttributeSet? = null)
-: PreferenceCategory(
+    context: Context,
+    attrs: AttributeSet? = null
+) :
+    PreferenceCategory(
         context,
         attrs,
         R.attr.switchPreferenceCompatStyle),
-CompoundButton.OnCheckedChangeListener {
+        CompoundButton.OnCheckedChangeListener {
 
     private var mChecked = false
 
@@ -40,7 +39,6 @@ CompoundButton.OnCheckedChangeListener {
         syncSwitchView(switchView)
     }
 
-    @TargetApi(ICE_CREAM_SANDWICH)
     private fun syncSwitchView(view: View) {
         if (view is Checkable) {
             val isChecked = view.isChecked
@@ -121,5 +119,4 @@ CompoundButton.OnCheckedChangeListener {
         else
             defaultValue as Boolean)
     }
-
 }

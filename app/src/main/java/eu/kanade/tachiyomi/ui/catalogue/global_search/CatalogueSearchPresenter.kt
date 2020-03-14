@@ -10,8 +10,8 @@ import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.FilterList
+import eu.kanade.tachiyomi.source.model.MangasPage
 import eu.kanade.tachiyomi.source.model.SManga
-import eu.kanade.tachiyomi.source.online.LoginSource
 import eu.kanade.tachiyomi.ui.base.presenter.BasePresenter
 import eu.kanade.tachiyomi.ui.catalogue.browse.BrowseCataloguePresenter
 import rx.Observable
@@ -33,11 +33,11 @@ import uy.kohesive.injekt.injectLazy
  * @param preferencesHelper manages the preference calls.
  */
 open class CatalogueSearchPresenter(
-        val initialQuery: String? = "",
-        val initialExtensionFilter: String? = null,
-        val sourceManager: SourceManager = Injekt.get(),
-        val db: DatabaseHelper = Injekt.get(),
-        val preferencesHelper: PreferencesHelper = Injekt.get()
+    val initialQuery: String? = "",
+    val initialExtensionFilter: String? = null,
+    val sourceManager: SourceManager = Injekt.get(),
+    val db: DatabaseHelper = Injekt.get(),
+    val preferencesHelper: PreferencesHelper = Injekt.get()
 ) : BasePresenter<CatalogueSearchController>() {
 
     /**
@@ -73,11 +73,12 @@ open class CatalogueSearchPresenter(
     override fun onCreate(savedState: Bundle?) {
         super.onCreate(savedState)
 
-        extensionFilter = savedState?.getString(CatalogueSearchPresenter::extensionFilter.name) ?:
-                          initialExtensionFilter
+        extensionFilter = savedState?.getString(CatalogueSearchPresenter::extensionFilter.name)
+                ?: initialExtensionFilter
 
         // Perform a search with previous or initial state
-        search(savedState?.getString(BrowseCataloguePresenter::query.name) ?: initialQuery.orEmpty())
+        search(savedState?.getString(BrowseCataloguePresenter::query.name)
+                ?: initialQuery.orEmpty())
     }
 
     override fun onDestroy() {
@@ -103,7 +104,6 @@ open class CatalogueSearchPresenter(
 
         return sourceManager.getCatalogueSources()
                 .filter { it.lang in languages }
-                .filterNot { it is LoginSource && !it.isLogged() }
                 .filterNot { it.id.toString() in hiddenCatalogues }
                 .sortedBy { "(${it.lang}) ${it.name}" }
     }
@@ -116,10 +116,10 @@ open class CatalogueSearchPresenter(
         }
 
         val filterSources = extensionManager.installedExtensions
-            .filter { it.pkgName == filter }
-            .flatMap { it.sources }
-            .filter { it in enabledSources }
-            .filterIsInstance<CatalogueSource>()
+                .filter { it.pkgName == filter }
+                .flatMap { it.sources }
+                .filter { it in enabledSources }
+                .filterIsInstance<CatalogueSource>()
 
         if (filterSources.isEmpty()) {
             return enabledSources
@@ -157,9 +157,9 @@ open class CatalogueSearchPresenter(
         fetchSourcesSubscription?.unsubscribe()
         fetchSourcesSubscription = Observable.from(sources)
                 .flatMap({ source ->
-                    source.fetchSearchManga(1, query, FilterList())
+                    Observable.defer { source.fetchSearchManga(1, query, FilterList()) }
                             .subscribeOn(Schedulers.io())
-                            .onExceptionResumeNext(Observable.empty()) // Ignore timeouts.
+                            .onErrorReturn { MangasPage(emptyList(), false) } // Ignore timeouts or other exceptions
                             .map { it.mangas.take(10) } // Get at most 10 manga from search result.
                             .map { it.map { networkToLocalManga(it, source.id) } } // Convert to local manga.
                             .doOnNext { fetchImage(it, source) } // Load manga covers.
@@ -202,9 +202,7 @@ open class CatalogueSearchPresenter(
                             .map { Pair(it, source) }
                             .concatMap { getMangaDetailsObservable(it.first, it.second) }
                             .map { Pair(source as CatalogueSource, it) }
-
                 }
-
                 .onBackpressureBuffer()
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe({ (source, manga) ->

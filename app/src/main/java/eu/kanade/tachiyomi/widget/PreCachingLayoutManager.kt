@@ -1,8 +1,8 @@
 package eu.kanade.tachiyomi.widget
 
 import android.content.Context
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 
 class PreCachingLayoutManager(context: Context) : LinearLayoutManager(context) {
 
@@ -22,5 +22,4 @@ class PreCachingLayoutManager(context: Context) : LinearLayoutManager(context) {
         }
         return DEFAULT_EXTRA_LAYOUT_SPACE
     }
-
 }

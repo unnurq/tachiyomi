@@ -3,12 +3,15 @@ package eu.kanade.tachiyomi.ui.setting
 import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
 import android.app.Activity
 import android.app.Dialog
-import android.content.*
+import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.support.v7.preference.PreferenceScreen
 import android.view.View
+import androidx.preference.PreferenceScreen
 import com.afollestad.materialdialogs.MaterialDialog
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.R
@@ -17,14 +20,27 @@ import eu.kanade.tachiyomi.data.backup.BackupCreateService
 import eu.kanade.tachiyomi.data.backup.BackupCreatorJob
 import eu.kanade.tachiyomi.data.backup.BackupRestoreService
 import eu.kanade.tachiyomi.data.backup.models.Backup
+import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
 import eu.kanade.tachiyomi.data.preference.getOrDefault
 import eu.kanade.tachiyomi.ui.base.controller.DialogController
 import eu.kanade.tachiyomi.ui.base.controller.popControllerWithTag
 import eu.kanade.tachiyomi.ui.base.controller.requestPermissionsSafe
-import eu.kanade.tachiyomi.util.*
+import eu.kanade.tachiyomi.util.preference.defaultValue
+import eu.kanade.tachiyomi.util.preference.entriesRes
+import eu.kanade.tachiyomi.util.preference.intListPreference
+import eu.kanade.tachiyomi.util.preference.onChange
+import eu.kanade.tachiyomi.util.preference.onClick
+import eu.kanade.tachiyomi.util.preference.preference
+import eu.kanade.tachiyomi.util.preference.preferenceCategory
+import eu.kanade.tachiyomi.util.preference.summaryRes
+import eu.kanade.tachiyomi.util.preference.titleRes
+import eu.kanade.tachiyomi.util.storage.getUriCompat
+import eu.kanade.tachiyomi.util.system.getFilePicker
+import eu.kanade.tachiyomi.util.system.registerLocalReceiver
+import eu.kanade.tachiyomi.util.system.toast
+import eu.kanade.tachiyomi.util.system.unregisterLocalReceiver
 import java.io.File
 import java.util.concurrent.TimeUnit
-import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
 
 class SettingsBackupController : SettingsController() {
 
@@ -89,13 +105,8 @@ class SettingsBackupController : SettingsController() {
                 summary = "%s"
 
                 onChange { newValue ->
-                    // Always cancel the previous task, it seems that sometimes they are not updated
-                    BackupCreatorJob.cancelTask()
-
                     val interval = (newValue as String).toInt()
-                    if (interval > 0) {
-                        BackupCreatorJob.setupTask(interval)
-                    }
+                    BackupCreatorJob.setupTask(context, interval)
                     true
                 }
             }
@@ -105,22 +116,13 @@ class SettingsBackupController : SettingsController() {
 
                 onClick {
                     val currentDir = preferences.backupsDirectory().getOrDefault()
-                    try{
-                        val intent = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-                        // Custom dir selected, open directory selector
-                        preferences.context.getFilePicker(currentDir)
-                        } else {
-                          Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
-                        }
-
+                    try {
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
                         startActivityForResult(intent, CODE_BACKUP_DIR)
-                    } catch (e: ActivityNotFoundException){
-                        //Fall back to custom picker on error
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
-                            startActivityForResult(preferences.context.getFilePicker(currentDir), CODE_BACKUP_DIR)
-                        }
+                    } catch (e: ActivityNotFoundException) {
+                        // Fall back to custom picker on error
+                        startActivityForResult(preferences.context.getFilePicker(currentDir), CODE_BACKUP_DIR)
                     }
-
                 }
 
                 preferences.backupsDirectory().asObservable()
@@ -144,7 +146,6 @@ class SettingsBackupController : SettingsController() {
                         backupNumber.isVisible = it > 0
                     }
         }
-
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -154,41 +155,38 @@ class SettingsBackupController : SettingsController() {
                 // Get uri of backup folder.
                 val uri = data.data
 
-                // Get UriPermission so it's possible to write files post kitkat.
-                if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT) {
-                    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                // Get UriPermission so it's possible to write files
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 
+                if (uri != null) {
                     activity.contentResolver.takePersistableUriPermission(uri, flags)
                 }
 
-                // Set backup Uri.
+                // Set backup Uri
                 preferences.backupsDirectory().set(uri.toString())
             }
             CODE_BACKUP_CREATE -> if (data != null && resultCode == Activity.RESULT_OK) {
                 val activity = activity ?: return
-                val uri = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-                    val dir = data.data.path
-                    val file = File(dir, Backup.getDefaultFilename())
 
-                    Uri.fromFile(file)
-                } else {
-                    val uri = data.data
-                    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                val uri = data.data
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
 
+                if (uri != null) {
                     activity.contentResolver.takePersistableUriPermission(uri, flags)
-                    val file = UniFile.fromUri(activity, uri)
-
-                    file.uri
                 }
 
+                val file = UniFile.fromUri(activity, uri)
+
                 CreatingBackupDialog().showDialog(router, TAG_CREATING_BACKUP_DIALOG)
-                BackupCreateService.makeBackup(activity, uri, backupFlags)
+                BackupCreateService.makeBackup(activity, file.uri, backupFlags)
             }
             CODE_BACKUP_RESTORE -> if (data != null && resultCode == Activity.RESULT_OK) {
                 val uri = data.data
-                RestoreBackupDialog(uri).showDialog(router)
+                if (uri != null) {
+                    RestoreBackupDialog(uri).showDialog(router)
+                }
             }
         }
     }
@@ -201,25 +199,17 @@ class SettingsBackupController : SettingsController() {
         val currentDir = preferences.backupsDirectory().getOrDefault()
 
         try {
-            // If API is lower than Lollipop use custom picker
-            val intent = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-                preferences.context.getFilePicker(currentDir)
-            } else {
-                // Use Androids build in file creator
-                Intent(Intent.ACTION_CREATE_DOCUMENT)
+            // Use Android's built-in file creator
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
                     .addCategory(Intent.CATEGORY_OPENABLE)
                     .setType("application/*")
                     .putExtra(Intent.EXTRA_TITLE, Backup.getDefaultFilename())
-            }
 
             startActivityForResult(intent, CODE_BACKUP_CREATE)
         } catch (e: ActivityNotFoundException) {
             // Handle errors where the android ROM doesn't support the built in picker
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){
-                startActivityForResult(preferences.context.getFilePicker(currentDir), CODE_BACKUP_CREATE)
-            }
+            startActivityForResult(preferences.context.getFilePicker(currentDir), CODE_BACKUP_CREATE)
         }
-
     }
 
     class CreateBackupDialog : DialogController() {
@@ -234,7 +224,7 @@ class SettingsBackupController : SettingsController() {
                     .content(R.string.backup_choice)
                     .items(options)
                     .itemsDisabledIndices(0)
-                    .itemsCallbackMultiChoice(arrayOf(0, 1, 2, 3, 4), { _, positions, _ ->
+                    .itemsCallbackMultiChoice(arrayOf(0, 1, 2, 3, 4)) { _, positions, _ ->
                         var flags = 0
                         for (i in 1 until positions.size) {
                             when (positions[i]) {
@@ -247,7 +237,7 @@ class SettingsBackupController : SettingsController() {
 
                         (targetController as? SettingsBackupController)?.createBackup(flags)
                         true
-                    })
+                    }
                     .positiveText(R.string.action_create)
                     .negativeText(android.R.string.cancel)
                     .build()
@@ -278,18 +268,20 @@ class SettingsBackupController : SettingsController() {
         override fun onCreateDialog(savedViewState: Bundle?): Dialog {
             val activity = activity!!
             val unifile = UniFile.fromUri(activity, args.getParcelable(KEY_URI))
-            return MaterialDialog.Builder(activity)
-                    .title(R.string.backup_created)
-                    .content(activity.getString(R.string.file_saved, unifile.filePath))
-                    .positiveText(R.string.action_close)
-                    .negativeText(R.string.action_export)
-                    .onNegative { _, _ ->
-                        val sendIntent = Intent(Intent.ACTION_SEND)
-                        sendIntent.type = "application/json"
-                        sendIntent.putExtra(Intent.EXTRA_STREAM, unifile.uri)
-                        startActivity(Intent.createChooser(sendIntent, ""))
-                    }
-                    .build()
+            return MaterialDialog.Builder(activity).apply {
+                title(R.string.backup_created)
+                if (unifile.filePath != null) {
+                    content(activity.getString(R.string.file_saved, unifile.filePath))
+                }
+                positiveText(R.string.action_close)
+                negativeText(R.string.action_export)
+                onNegative { _, _ ->
+                    val sendIntent = Intent(Intent.ACTION_SEND)
+                    sendIntent.type = "application/json"
+                    sendIntent.putExtra(Intent.EXTRA_STREAM, unifile.uri)
+                    startActivity(Intent.createChooser(sendIntent, ""))
+                }
+            }.build()
         }
 
         private companion object {
@@ -311,7 +303,7 @@ class SettingsBackupController : SettingsController() {
                         val context = applicationContext
                         if (context != null) {
                             RestoringBackupDialog().showDialog(router, TAG_RESTORING_BACKUP_DIALOG)
-                            BackupRestoreService.start(context, args.getParcelable(KEY_URI))
+                            BackupRestoreService.start(context, args.getParcelable(KEY_URI)!!)
                         }
                     }
                     .build()
@@ -380,12 +372,12 @@ class SettingsBackupController : SettingsController() {
             return MaterialDialog.Builder(activity)
                     .title(R.string.restore_completed)
                     .content(activity.getString(R.string.restore_completed_content, timeString,
-                            if (errors > 0) "$errors" else activity.getString(android.R.string.no)))
+                            if (errors > 0) "$errors" else activity.getString(android.R.string.cancel)))
                     .positiveText(R.string.action_close)
                     .negativeText(R.string.action_open_log)
                     .onNegative { _, _ ->
                         val context = applicationContext ?: return@onNegative
-                        if (!path.isEmpty()) {
+                        if (!path.isNullOrEmpty()) {
                             val destFile = File(path, file)
                             val uri = destFile.getUriCompat(context)
                             val sendIntent = Intent(Intent.ACTION_VIEW).apply {
@@ -454,5 +446,4 @@ class SettingsBackupController : SettingsController() {
         const val TAG_CREATING_BACKUP_DIALOG = "CreatingBackupDialog"
         const val TAG_RESTORING_BACKUP_DIALOG = "RestoringBackupDialog"
     }
-
 }

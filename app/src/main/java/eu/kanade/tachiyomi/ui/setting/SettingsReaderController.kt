@@ -1,9 +1,15 @@
 package eu.kanade.tachiyomi.ui.setting
 
 import android.os.Build
-import android.support.v7.preference.PreferenceScreen
+import androidx.preference.PreferenceScreen
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.preference.PreferenceKeys as Keys
+import eu.kanade.tachiyomi.util.preference.defaultValue
+import eu.kanade.tachiyomi.util.preference.entriesRes
+import eu.kanade.tachiyomi.util.preference.intListPreference
+import eu.kanade.tachiyomi.util.preference.preferenceCategory
+import eu.kanade.tachiyomi.util.preference.switchPreference
+import eu.kanade.tachiyomi.util.preference.titleRes
 
 class SettingsReaderController : SettingsController() {
 
@@ -73,6 +79,13 @@ class SettingsReaderController : SettingsController() {
             titleRes = R.string.pref_fullscreen
             defaultValue = true
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            switchPreference {
+                key = Keys.cutoutShort
+                titleRes = R.string.pref_cutout_short
+                defaultValue = true
+            }
+        }
         switchPreference {
             key = Keys.keepScreenOn
             titleRes = R.string.pref_keep_screen_on
@@ -90,6 +103,12 @@ class SettingsReaderController : SettingsController() {
                 defaultValue = false
             }
         }
+        switchPreference {
+            key = Keys.alwaysShowChapterTransition
+            titleRes = R.string.pref_always_show_chapter_transition
+            defaultValue = true
+        }
+
         preferenceCategory {
             titleRes = R.string.pager_viewer
 
@@ -110,6 +129,11 @@ class SettingsReaderController : SettingsController() {
             switchPreference {
                 key = Keys.cropBordersWebtoon
                 titleRes = R.string.pref_crop_borders
+                defaultValue = false
+            }
+            switchPreference {
+                key = Keys.padPagesVertWebtoon
+                titleRes = R.string.pref_webtoon_padding_vert
                 defaultValue = false
             }
         }
@@ -138,5 +162,4 @@ class SettingsReaderController : SettingsController() {
             }.apply { dependency = Keys.readWithVolumeKeys }
         }
     }
-
 }

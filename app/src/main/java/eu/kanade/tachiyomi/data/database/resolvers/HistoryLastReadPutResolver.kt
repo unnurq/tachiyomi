@@ -1,7 +1,7 @@
 package eu.kanade.tachiyomi.data.database.resolvers
 
 import android.content.ContentValues
-import android.support.annotation.NonNull
+import androidx.annotation.NonNull
 import com.pushtorefresh.storio.sqlite.StorIOSQLite
 import com.pushtorefresh.storio.sqlite.operations.put.PutResult
 import com.pushtorefresh.storio.sqlite.queries.Query
@@ -60,5 +60,4 @@ class HistoryLastReadPutResolver : HistoryPutResolver() {
     fun mapToUpdateContentValues(history: History) = ContentValues(1).apply {
         put(HistoryTable.COL_LAST_READ, history.last_read)
     }
-
 }
