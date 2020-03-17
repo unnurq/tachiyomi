@@ -12,14 +12,18 @@ import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.data.track.TrackService
 import eu.kanade.tachiyomi.data.track.model.TrackSearch
 import eu.kanade.tachiyomi.ui.base.controller.DialogController
-import eu.kanade.tachiyomi.util.plusAssign
-import kotlinx.android.synthetic.main.track_search_dialog.view.*
+import eu.kanade.tachiyomi.util.lang.plusAssign
+import eu.kanade.tachiyomi.util.view.invisible
+import eu.kanade.tachiyomi.util.view.visible
+import java.util.concurrent.TimeUnit
+import kotlinx.android.synthetic.main.track_search_dialog.view.progress
+import kotlinx.android.synthetic.main.track_search_dialog.view.track_search
+import kotlinx.android.synthetic.main.track_search_dialog.view.track_search_list
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
 import rx.subscriptions.CompositeSubscription
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.util.concurrent.TimeUnit
 
 class TrackSearchDialog : DialogController {
 
@@ -50,12 +54,14 @@ class TrackSearchDialog : DialogController {
         service = Injekt.get<TrackManager>().getService(bundle.getInt(KEY_SERVICE))!!
     }
 
-    override fun onCreateDialog(savedState: Bundle?): Dialog {
+    override fun onCreateDialog(savedViewState: Bundle?): Dialog {
         val dialog = MaterialDialog.Builder(activity!!)
                 .customView(R.layout.track_search_dialog, false)
                 .positiveText(android.R.string.ok)
-                .negativeText(android.R.string.cancel)
                 .onPositive { _, _ -> onPositiveButtonClick() }
+                .negativeText(android.R.string.cancel)
+                .neutralText(R.string.action_remove)
+                .onNeutral { _, _ -> onRemoveButtonClick() }
                 .build()
 
         if (subscriptions.isUnsubscribed) {
@@ -63,7 +69,7 @@ class TrackSearchDialog : DialogController {
         }
 
         dialogView = dialog.view
-        onViewCreated(dialog.view, savedState)
+        onViewCreated(dialog.view, savedViewState)
 
         return dialog
     }
@@ -113,23 +119,23 @@ class TrackSearchDialog : DialogController {
 
     private fun search(query: String) {
         val view = dialogView ?: return
-        view.progress.visibility = View.VISIBLE
-        view.track_search_list.visibility = View.INVISIBLE
+        view.progress.visible()
+        view.track_search_list.invisible()
         trackController.presenter.search(query, service)
     }
 
     fun onSearchResults(results: List<TrackSearch>) {
         selectedItem = null
         val view = dialogView ?: return
-        view.progress.visibility = View.INVISIBLE
-        view.track_search_list.visibility = View.VISIBLE
+        view.progress.invisible()
+        view.track_search_list.visible()
         adapter?.setItems(results)
     }
 
     fun onSearchResultsError() {
         val view = dialogView ?: return
-        view.progress.visibility = View.VISIBLE
-        view.track_search_list.visibility = View.INVISIBLE
+        view.progress.visible()
+        view.track_search_list.invisible()
         adapter?.setItems(emptyList())
     }
 
@@ -137,8 +143,11 @@ class TrackSearchDialog : DialogController {
         trackController.presenter.registerTracking(selectedItem, service)
     }
 
+    private fun onRemoveButtonClick() {
+        trackController.presenter.unregisterTracking(service)
+    }
+
     private companion object {
         const val KEY_SERVICE = "service_id"
     }
-
 }

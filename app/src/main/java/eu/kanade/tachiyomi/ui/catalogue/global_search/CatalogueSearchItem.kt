@@ -1,8 +1,10 @@
 package eu.kanade.tachiyomi.ui.catalogue.global_search
 
 import android.view.View
+import androidx.recyclerview.widget.RecyclerView
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.AbstractFlexibleItem
+import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.source.CatalogueSource
 
@@ -13,8 +15,8 @@ import eu.kanade.tachiyomi.source.CatalogueSource
  * @param results the search results.
  * @param highlighted whether this search item should be highlighted/marked in the catalogue search view.
  */
-class CatalogueSearchItem(val source: CatalogueSource, val results: List<CatalogueSearchCardItem>?, val highlighted: Boolean = false)
-    : AbstractFlexibleItem<CatalogueSearchHolder>() {
+class CatalogueSearchItem(val source: CatalogueSource, val results: List<CatalogueSearchCardItem>?, val highlighted: Boolean = false) :
+    AbstractFlexibleItem<CatalogueSearchHolder>() {
 
     /**
      * Set view.
@@ -30,15 +32,19 @@ class CatalogueSearchItem(val source: CatalogueSource, val results: List<Catalog
      *
      * @return holder of view.
      */
-    override fun createViewHolder(view: View, adapter: FlexibleAdapter<*>): CatalogueSearchHolder {
+    override fun createViewHolder(view: View, adapter: FlexibleAdapter<IFlexible<RecyclerView.ViewHolder>>): CatalogueSearchHolder {
         return CatalogueSearchHolder(view, adapter as CatalogueSearchAdapter)
     }
 
     /**
      * Bind item to view.
      */
-    override fun bindViewHolder(adapter: FlexibleAdapter<*>, holder: CatalogueSearchHolder,
-                                position: Int, payloads: List<Any?>?) {
+    override fun bindViewHolder(
+        adapter: FlexibleAdapter<IFlexible<RecyclerView.ViewHolder>>,
+        holder: CatalogueSearchHolder,
+        position: Int,
+        payloads: List<Any?>?
+    ) {
         holder.bind(this)
     }
 
@@ -62,5 +68,4 @@ class CatalogueSearchItem(val source: CatalogueSource, val results: List<Catalog
     override fun hashCode(): Int {
         return source.id.toInt()
     }
-
 }

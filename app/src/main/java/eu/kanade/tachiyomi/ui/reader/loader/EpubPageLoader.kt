@@ -2,9 +2,9 @@ package eu.kanade.tachiyomi.ui.reader.loader
 
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
-import eu.kanade.tachiyomi.util.EpubFile
-import rx.Observable
+import eu.kanade.tachiyomi.util.storage.EpubFile
 import java.io.File
+import rx.Observable
 
 /**
  * Loader used to load a chapter from a .epub file.
@@ -30,14 +30,14 @@ class EpubPageLoader(file: File) : PageLoader() {
      */
     override fun getPages(): Observable<List<ReaderPage>> {
         return epub.getImagesFromPages()
-            .mapIndexed { i, path ->
-                val streamFn = { epub.getInputStream(epub.getEntry(path)!!) }
-                ReaderPage(i).apply {
-                    stream = streamFn
-                    status = Page.READY
+                .mapIndexed { i, path ->
+                    val streamFn = { epub.getInputStream(epub.getEntry(path)!!) }
+                    ReaderPage(i).apply {
+                        stream = streamFn
+                        status = Page.READY
+                    }
                 }
-            }
-            .let { Observable.just(it) }
+                .let { Observable.just(it) }
     }
 
     /**
@@ -50,5 +50,4 @@ class EpubPageLoader(file: File) : PageLoader() {
             Page.READY
         })
     }
-
 }

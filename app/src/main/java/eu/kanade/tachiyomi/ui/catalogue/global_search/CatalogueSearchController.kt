@@ -1,9 +1,14 @@
 package eu.kanade.tachiyomi.ui.catalogue.global_search
 
 import android.os.Bundle
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.SearchView
-import android.view.*
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.appcompat.widget.SearchView
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.jakewharton.rxbinding.support.v7.widget.queryTextChangeEvents
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Manga
@@ -11,7 +16,7 @@ import eu.kanade.tachiyomi.source.CatalogueSource
 import eu.kanade.tachiyomi.ui.base.controller.NucleusController
 import eu.kanade.tachiyomi.ui.base.controller.withFadeTransaction
 import eu.kanade.tachiyomi.ui.manga.MangaController
-import kotlinx.android.synthetic.main.catalogue_global_search_controller.*
+import kotlinx.android.synthetic.main.catalogue_global_search_controller.recycler
 
 /**
  * This controller shows and manages the different search result in global search.
@@ -19,8 +24,8 @@ import kotlinx.android.synthetic.main.catalogue_global_search_controller.*
  * [CatalogueSearchCardAdapter.OnMangaClickListener] called when manga is clicked in global search
  */
 open class CatalogueSearchController(
-        protected val initialQuery: String? = null,
-        protected val extensionFilter: String? = null
+    protected val initialQuery: String? = null,
+    protected val extensionFilter: String? = null
 ) : NucleusController<CatalogueSearchPresenter>(),
         CatalogueSearchCardAdapter.OnMangaClickListener {
 
@@ -186,5 +191,4 @@ open class CatalogueSearchController(
     fun onMangaInitialized(source: CatalogueSource, manga: Manga) {
         getHolder(source)?.setImage(manga)
     }
-
 }

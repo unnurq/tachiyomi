@@ -2,7 +2,10 @@ package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
 import com.f2prateek.rx.preferences.Preference
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
-import eu.kanade.tachiyomi.util.addTo
+import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.navigation.KindlishNavigation
+import eu.kanade.tachiyomi.ui.reader.viewer.navigation.LNavigation
+import eu.kanade.tachiyomi.util.lang.addTo
 import rx.subscriptions.CompositeSubscription
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -43,33 +46,53 @@ class PagerConfig(private val viewer: PagerViewer, preferences: PreferencesHelpe
     var doubleTapAnimDuration = 500
         private set
 
+    var navigationMode : ViewerNavigation = PagerDefaultNavigation()
+        private set
+
+    var alwaysShowChapterTransition = true
+        private set
+
     init {
         preferences.readWithTapping()
-            .register({ tappingEnabled = it })
+                .register({ tappingEnabled = it })
 
         preferences.readWithLongTap()
-            .register({ longTapEnabled = it })
+                .register({ longTapEnabled = it })
 
         preferences.pageTransitions()
-            .register({ usePageTransitions = it })
+                .register({ usePageTransitions = it })
 
         preferences.imageScaleType()
-            .register({ imageScaleType = it }, { imagePropertyChangedListener?.invoke() })
+                .register({ imageScaleType = it }, { imagePropertyChangedListener?.invoke() })
 
         preferences.zoomStart()
-            .register({ zoomTypeFromPreference(it) }, { imagePropertyChangedListener?.invoke() })
+                .register({ zoomTypeFromPreference(it) }, { imagePropertyChangedListener?.invoke() })
 
         preferences.cropBorders()
-            .register({ imageCropBorders = it }, { imagePropertyChangedListener?.invoke() })
+                .register({ imageCropBorders = it }, { imagePropertyChangedListener?.invoke() })
 
         preferences.doubleTapAnimSpeed()
-            .register({ doubleTapAnimDuration = it })
+                .register({ doubleTapAnimDuration = it })
 
         preferences.readWithVolumeKeys()
-            .register({ volumeKeysEnabled = it })
+                .register({ volumeKeysEnabled = it })
 
         preferences.readWithVolumeKeysInverted()
             .register({ volumeKeysInverted = it })
+
+        preferences.navigationModePager()
+            .register({
+                navigationMode = when (it) {
+                    0 -> PagerDefaultNavigation()
+                    1 -> LNavigation()
+                    2 -> KindlishNavigation()
+
+                    else -> PagerDefaultNavigation()
+                }
+            })
+
+        preferences.alwaysShowChapterTransition()
+                .register({ alwaysShowChapterTransition = it })
     }
 
     fun unsubscribe() {
@@ -77,16 +100,16 @@ class PagerConfig(private val viewer: PagerViewer, preferences: PreferencesHelpe
     }
 
     private fun <T> Preference<T>.register(
-            valueAssignment: (T) -> Unit,
-            onChanged: (T) -> Unit = {}
+        valueAssignment: (T) -> Unit,
+        onChanged: (T) -> Unit = {}
     ) {
         asObservable()
-            .doOnNext(valueAssignment)
-            .skip(1)
-            .distinctUntilChanged()
-            .doOnNext(onChanged)
-            .subscribe()
-            .addTo(subscriptions)
+                .doOnNext(valueAssignment)
+                .skip(1)
+                .distinctUntilChanged()
+                .doOnNext(onChanged)
+                .subscribe()
+                .addTo(subscriptions)
     }
 
     private fun zoomTypeFromPreference(value: Int) {
@@ -109,5 +132,4 @@ class PagerConfig(private val viewer: PagerViewer, preferences: PreferencesHelpe
     enum class ZoomType {
         Left, Center, Right
     }
-
 }

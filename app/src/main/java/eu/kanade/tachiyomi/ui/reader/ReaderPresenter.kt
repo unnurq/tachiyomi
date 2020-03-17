@@ -21,8 +21,13 @@ import eu.kanade.tachiyomi.ui.reader.loader.DownloadPageLoader
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
-import eu.kanade.tachiyomi.util.DiskUtil
-import eu.kanade.tachiyomi.util.ImageUtil
+import eu.kanade.tachiyomi.util.lang.byteSize
+import eu.kanade.tachiyomi.util.lang.takeBytes
+import eu.kanade.tachiyomi.util.storage.DiskUtil
+import eu.kanade.tachiyomi.util.system.ImageUtil
+import java.io.File
+import java.util.Date
+import java.util.concurrent.TimeUnit
 import rx.Completable
 import rx.Observable
 import rx.Subscription
@@ -31,19 +36,16 @@ import rx.schedulers.Schedulers
 import timber.log.Timber
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.io.File
-import java.util.*
-import java.util.concurrent.TimeUnit
 
 /**
  * Presenter used by the activity to perform background operations.
  */
 class ReaderPresenter(
-        private val db: DatabaseHelper = Injekt.get(),
-        private val sourceManager: SourceManager = Injekt.get(),
-        private val downloadManager: DownloadManager = Injekt.get(),
-        private val coverCache: CoverCache = Injekt.get(),
-        private val preferences: PreferencesHelper = Injekt.get()
+    private val db: DatabaseHelper = Injekt.get(),
+    private val sourceManager: SourceManager = Injekt.get(),
+    private val downloadManager: DownloadManager = Injekt.get(),
+    private val coverCache: CoverCache = Injekt.get(),
+    private val preferences: PreferencesHelper = Injekt.get()
 ) : BasePresenter<ReaderActivity>() {
 
     /**
@@ -90,7 +92,7 @@ class ReaderPresenter(
 
         val chaptersForReader =
                 if (preferences.skipRead()) {
-                    var list = dbChapters.filter { it -> !it.read }.toMutableList()
+                    val list = dbChapters.filter { !it.read }.toMutableList()
                     val find = list.find { it.id == chapterId }
                     if (find == null) {
                         list.add(selectedChapter)
@@ -147,10 +149,9 @@ class ReaderPresenter(
 
     /**
      * Called when the user pressed the back button and is going to leave the reader. Used to
-     * update tracking services and trigger deletion of the downloaded chapters.
+     * trigger deletion of the downloaded chapters.
      */
     fun onBackPressed() {
-        updateTrackLastChapterRead()
         deletePendingChapters()
     }
 
@@ -184,6 +185,21 @@ class ReaderPresenter(
                 .subscribeFirst({ _, _ ->
                     // Ignore onNext event
                 }, ReaderActivity::setInitialChapterError)
+    }
+
+    /**
+     * Initializes this presenter with the given [mangaId] and [chapterUrl]. This method will
+     * fetch the manga from the database and initialize the initial chapter.
+     */
+    fun init(mangaId: Long, chapterUrl: String) {
+        if (!needsInit()) return
+
+        val context = Injekt.get<Application>()
+        val db = DatabaseHelper(context)
+        val chapterId = db.getChapter(chapterUrl, mangaId).executeAsBlocking()?.id
+        if (chapterId != null) {
+            init(mangaId, chapterId)
+        }
     }
 
     /**
@@ -223,8 +239,8 @@ class ReaderPresenter(
      * Callers must also handle the onError event.
      */
     private fun getLoadObservable(
-            loader: ChapterLoader,
-            chapter: ReaderChapter
+        loader: ChapterLoader,
+        chapter: ReaderChapter
     ): Observable<ViewerChapters> {
         return loader.loadChapter(chapter)
                 .andThen(Observable.fromCallable {
@@ -308,7 +324,7 @@ class ReaderPresenter(
 
     /**
      * Called every time a page changes on the reader. Used to mark the flag of chapters being
-     * read, enqueue downloaded chapter deletion, and updating the active chapter if this
+     * read, update tracking services, enqueue downloaded chapter deletion, and updating the active chapter if this
      * [page]'s chapter is different from the currently active.
      */
     fun onPageSelected(page: ReaderPage) {
@@ -320,6 +336,7 @@ class ReaderPresenter(
         selectedChapter.chapter.last_page_read = page.index
         if (selectedChapter.pages?.lastIndex == page.index) {
             selectedChapter.chapter.read = true
+            updateTrackChapterRead(selectedChapter)
             enqueueDeleteReadChapters(selectedChapter)
         }
 
@@ -433,8 +450,10 @@ class ReaderPresenter(
         val chapter = page.chapter.chapter
 
         // Build destination file.
+        val filenameSuffix = " - ${page.number}.${type.extension}"
         val filename = DiskUtil.buildValidFilename(
-                "${manga.title} - ${chapter.name}") + " - ${page.number}.${type.extension}"
+                "${manga.title} - ${chapter.name}".takeBytes(MAX_FILE_NAME_BYTES - filenameSuffix.byteSize())
+        ) + filenameSuffix
 
         val destFile = File(directory, filename)
         stream().use { input ->
@@ -497,7 +516,7 @@ class ReaderPresenter(
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribeFirst(
                         { view, file -> view.onShareImageResult(file) },
-                        { view, error -> /* Empty */ }
+                        { _, _ -> /* Empty */ }
                 )
     }
 
@@ -553,21 +572,11 @@ class ReaderPresenter(
      * Starts the service that updates the last chapter read in sync services. This operation
      * will run in a background thread and errors are ignored.
      */
-    private fun updateTrackLastChapterRead() {
+    private fun updateTrackChapterRead(readerChapter: ReaderChapter) {
         if (!preferences.autoUpdateTrack()) return
-        val viewerChapters = viewerChaptersRelay.value ?: return
         val manga = manga ?: return
 
-        val currChapter = viewerChapters.currChapter.chapter
-        val prevChapter = viewerChapters.prevChapter?.chapter
-
-        // Get the last chapter read from the reader.
-        val lastChapterRead = if (currChapter.read)
-            currChapter.chapter_number.toInt()
-        else if (prevChapter != null && prevChapter.read)
-            prevChapter.chapter_number.toInt()
-        else
-            return
+        val chapterRead = readerChapter.chapter.chapter_number.toInt()
 
         val trackManager = Injekt.get<TrackManager>()
 
@@ -575,8 +584,8 @@ class ReaderPresenter(
                 .flatMapCompletable { trackList ->
                     Completable.concat(trackList.map { track ->
                         val service = trackManager.getService(track.sync_id)
-                        if (service != null && service.isLogged && lastChapterRead > track.last_chapter_read) {
-                            track.last_chapter_read = lastChapterRead
+                        if (service != null && service.isLogged && chapterRead > track.last_chapter_read) {
+                            track.last_chapter_read = chapterRead
 
                             // We wan't these to execute even if the presenter is destroyed and leaks
                             // for a while. The view can still be garbage collected.
@@ -633,4 +642,8 @@ class ReaderPresenter(
                 .subscribe()
     }
 
+    companion object {
+        // Safe theoretical max filename size is 255 bytes and 1 char = 2-4 bytes (UTF-8)
+        private const val MAX_FILE_NAME_BYTES = 250
+    }
 }

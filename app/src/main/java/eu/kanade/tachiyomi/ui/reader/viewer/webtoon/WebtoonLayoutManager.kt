@@ -1,8 +1,8 @@
 @file:Suppress("PackageDirectoryMismatch")
 
-package android.support.v7.widget
+package androidx.recyclerview.widget
 
-import android.support.v7.widget.RecyclerView.NO_POSITION
+import androidx.recyclerview.widget.RecyclerView.NO_POSITION
 import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 
 /**
@@ -44,12 +44,11 @@ class WebtoonLayoutManager(activity: ReaderActivity) : LinearLayoutManager(activ
 
         val child = if (mOrientation == HORIZONTAL)
             mHorizontalBoundCheck
-                .findOneViewWithinBoundFlags(fromIndex, toIndex, preferredBoundsFlag, 0)
+                    .findOneViewWithinBoundFlags(fromIndex, toIndex, preferredBoundsFlag, 0)
         else
             mVerticalBoundCheck
-                .findOneViewWithinBoundFlags(fromIndex, toIndex, preferredBoundsFlag, 0)
+                    .findOneViewWithinBoundFlags(fromIndex, toIndex, preferredBoundsFlag, 0)
 
         return if (child == null) NO_POSITION else getPosition(child)
     }
-
 }

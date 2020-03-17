@@ -1,9 +1,15 @@
 package eu.kanade.tachiyomi.ui.catalogue
 
 import android.Manifest.permission.WRITE_EXTERNAL_STORAGE
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.SearchView
-import android.view.*
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.appcompat.widget.SearchView
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.afollestad.materialdialogs.MaterialDialog
 import com.bluelinelabs.conductor.ControllerChangeHandler
 import com.bluelinelabs.conductor.ControllerChangeType
 import com.bluelinelabs.conductor.RouterTransaction
@@ -13,30 +19,31 @@ import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
+import eu.kanade.tachiyomi.data.preference.getOrDefault
 import eu.kanade.tachiyomi.source.CatalogueSource
-import eu.kanade.tachiyomi.source.online.LoginSource
+import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.ui.base.controller.NucleusController
+import eu.kanade.tachiyomi.ui.base.controller.RootController
 import eu.kanade.tachiyomi.ui.base.controller.requestPermissionsSafe
 import eu.kanade.tachiyomi.ui.base.controller.withFadeTransaction
 import eu.kanade.tachiyomi.ui.catalogue.browse.BrowseCatalogueController
 import eu.kanade.tachiyomi.ui.catalogue.global_search.CatalogueSearchController
 import eu.kanade.tachiyomi.ui.catalogue.latest.LatestUpdatesController
 import eu.kanade.tachiyomi.ui.setting.SettingsSourcesController
-import eu.kanade.tachiyomi.widget.preference.SourceLoginDialog
-import kotlinx.android.synthetic.main.catalogue_main_controller.*
+import kotlinx.android.synthetic.main.catalogue_main_controller.recycler
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 /**
  * This controller shows and manages the different catalogues enabled by the user.
  * This controller should only handle UI actions, IO actions should be done by [CataloguePresenter]
- * [SourceLoginDialog.Listener] refreshes the adapter on successful login of catalogues.
  * [CatalogueAdapter.OnBrowseClickListener] call function data on browse item click.
  * [CatalogueAdapter.OnLatestClickListener] call function data on latest item click
  */
 class CatalogueController : NucleusController<CataloguePresenter>(),
-        SourceLoginDialog.Listener,
+        RootController,
         FlexibleAdapter.OnItemClickListener,
+        FlexibleAdapter.OnItemLongClickListener,
         CatalogueAdapter.OnBrowseClickListener,
         CatalogueAdapter.OnLatestClickListener {
 
@@ -117,40 +124,41 @@ class CatalogueController : NucleusController<CataloguePresenter>(),
         }
     }
 
-    /**
-     * Called when login dialog is closed, refreshes the adapter.
-     *
-     * @param source clicked item containing source information.
-     */
-    override fun loginDialogClosed(source: LoginSource) {
-        if (source.isLogged()) {
-            adapter?.clear()
-            presenter.loadSources()
-        }
-    }
-
-    /**
-     * Called when item is clicked
-     */
-    override fun onItemClick(position: Int): Boolean {
+    override fun onItemClick(view: View, position: Int): Boolean {
         val item = adapter?.getItem(position) as? SourceItem ?: return false
         val source = item.source
-        if (source is LoginSource && !source.isLogged()) {
-            val dialog = SourceLoginDialog(source)
-            dialog.targetController = this
-            dialog.showDialog(router)
-        } else {
-            // Open the catalogue view.
-            openCatalogue(source, BrowseCatalogueController(source))
-        }
+        openCatalogue(source, BrowseCatalogueController(source))
         return false
+    }
+
+    override fun onItemLongClick(position: Int) {
+        val activity = activity ?: return
+        val item = adapter?.getItem(position) as? SourceItem ?: return
+
+        MaterialDialog.Builder(activity)
+                .title(item.source.name)
+                .items(activity.getString(R.string.action_hide))
+                .itemsCallback { _, _, which, _ ->
+                    when (which) {
+                        0 -> {
+                            hideCatalogue(item.source)
+                        }
+                    }
+                }.show()
+    }
+
+    private fun hideCatalogue(source: Source) {
+        val current = preferences.hiddenCatalogues().getOrDefault()
+        preferences.hiddenCatalogues().set(current + source.id.toString())
+
+        presenter.updateSources()
     }
 
     /**
      * Called when browse is clicked in [CatalogueAdapter]
      */
     override fun onBrowseClick(position: Int) {
-        onItemClick(position)
+        onItemClick(view!!, position)
     }
 
     /**
@@ -192,7 +200,7 @@ class CatalogueController : NucleusController<CataloguePresenter>(),
                 .subscribeUntilDestroy { performGlobalSearch(it.queryText().toString()) }
     }
 
-    fun performGlobalSearch(query: String){
+    fun performGlobalSearch(query: String) {
         router.pushController(CatalogueSearchController(query).withFadeTransaction())
     }
 
@@ -210,9 +218,8 @@ class CatalogueController : NucleusController<CataloguePresenter>(),
                         .popChangeHandler(SettingsSourcesFadeChangeHandler())
                         .pushChangeHandler(FadeChangeHandler()))
             }
-            else -> return super.onOptionsItemSelected(item)
         }
-        return true
+        return super.onOptionsItemSelected(item)
     }
 
     /**

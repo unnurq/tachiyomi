@@ -5,24 +5,29 @@ import eu.kanade.tachiyomi.network.ProgressListener
 import rx.subjects.Subject
 
 open class Page(
-        val index: Int,
-        val url: String = "",
-        var imageUrl: String? = null,
-        @Transient var uri: Uri? = null // Deprecated but can't be deleted due to extensions
+    val index: Int,
+    val url: String = "",
+    var imageUrl: String? = null,
+    @Transient var uri: Uri? = null // Deprecated but can't be deleted due to extensions
 ) : ProgressListener {
 
     val number: Int
         get() = index + 1
 
-    @Transient @Volatile var status: Int = 0
+    @Transient
+    @Volatile
+    var status: Int = 0
         set(value) {
             field = value
             statusSubject?.onNext(value)
         }
 
-    @Transient @Volatile var progress: Int = 0
+    @Transient
+    @Volatile
+    var progress: Int = 0
 
-    @Transient private var statusSubject: Subject<Int, Int>? = null
+    @Transient
+    private var statusSubject: Subject<Int, Int>? = null
 
     override fun update(bytesRead: Long, contentLength: Long, done: Boolean) {
         progress = if (contentLength > 0) {
@@ -37,12 +42,10 @@ open class Page(
     }
 
     companion object {
-
         const val QUEUE = 0
         const val LOAD_PAGE = 1
         const val DOWNLOAD_IMAGE = 2
         const val READY = 3
         const val ERROR = 4
     }
-
 }

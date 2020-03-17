@@ -5,11 +5,15 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import android.support.v4.app.NotificationCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationCompat.GROUP_ALERT_SUMMARY
+import androidx.core.app.NotificationManagerCompat
+import com.bumptech.glide.Glide
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.DatabaseHelper
 import eu.kanade.tachiyomi.data.database.models.Category
@@ -18,6 +22,7 @@ import eu.kanade.tachiyomi.data.database.models.LibraryManga
 import eu.kanade.tachiyomi.data.database.models.Manga
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadService
+import eu.kanade.tachiyomi.data.library.LibraryUpdateRanker.rankingScheme
 import eu.kanade.tachiyomi.data.library.LibraryUpdateService.Companion.start
 import eu.kanade.tachiyomi.data.notification.NotificationReceiver
 import eu.kanade.tachiyomi.data.notification.Notifications
@@ -28,15 +33,22 @@ import eu.kanade.tachiyomi.source.SourceManager
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.main.MainActivity
-import eu.kanade.tachiyomi.util.*
+import eu.kanade.tachiyomi.util.chapter.syncChaptersWithSource
+import eu.kanade.tachiyomi.util.lang.chop
+import eu.kanade.tachiyomi.util.system.isServiceRunning
+import eu.kanade.tachiyomi.util.system.notification
+import eu.kanade.tachiyomi.util.system.notificationBuilder
+import eu.kanade.tachiyomi.util.system.notificationManager
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.ArrayList
+import java.util.concurrent.atomic.AtomicInteger
 import rx.Observable
 import rx.Subscription
 import rx.schedulers.Schedulers
 import timber.log.Timber
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.util.*
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * This class will take care of updating the chapters of the manga from the library. It can be
@@ -47,11 +59,11 @@ import java.util.concurrent.atomic.AtomicInteger
  * destroyed.
  */
 class LibraryUpdateService(
-        val db: DatabaseHelper = Injekt.get(),
-        val sourceManager: SourceManager = Injekt.get(),
-        val preferences: PreferencesHelper = Injekt.get(),
-        val downloadManager: DownloadManager = Injekt.get(),
-        val trackManager: TrackManager = Injekt.get()
+    val db: DatabaseHelper = Injekt.get(),
+    val sourceManager: SourceManager = Injekt.get(),
+    val preferences: PreferencesHelper = Injekt.get(),
+    val downloadManager: DownloadManager = Injekt.get(),
+    val trackManager: TrackManager = Injekt.get()
 ) : Service() {
 
     /**
@@ -81,13 +93,15 @@ class LibraryUpdateService(
     /**
      * Cached progress notification to avoid creating a lot.
      */
-    private val progressNotification by lazy { NotificationCompat.Builder(this, Notifications.CHANNEL_LIBRARY)
-            .setContentTitle(getString(R.string.app_name))
-            .setSmallIcon(R.drawable.ic_refresh_white_24dp_img)
-            .setLargeIcon(notificationBitmap)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .addAction(R.drawable.ic_clear_grey_24dp_img, getString(android.R.string.cancel), cancelIntent)
+    private val progressNotificationBuilder by lazy {
+        notificationBuilder(Notifications.CHANNEL_LIBRARY) {
+            setContentTitle(getString(R.string.app_name))
+            setSmallIcon(R.drawable.ic_refresh_white_24dp)
+            setLargeIcon(notificationBitmap)
+            setOngoing(true)
+            setOnlyAlertOnce(true)
+            addAction(R.drawable.ic_close_white_24dp, getString(android.R.string.cancel), cancelIntent)
+        }
     }
 
     /**
@@ -95,8 +109,8 @@ class LibraryUpdateService(
      */
     enum class Target {
         CHAPTERS, // Manga chapters
-        DETAILS,  // Manga metadata
-        TRACKING  // Tracking metadata
+        DETAILS, // Manga metadata
+        TRACKING // Tracking metadata
     }
 
     companion object {
@@ -110,6 +124,10 @@ class LibraryUpdateService(
          * Key that defines what should be updated.
          */
         const val KEY_TARGET = "target"
+
+        private const val NOTIF_MAX_CHAPTERS = 5
+        private const val NOTIF_TITLE_MAX_LEN = 45
+        private const val NOTIF_ICON_SIZE = 192
 
         /**
          * Returns the status of the service.
@@ -151,7 +169,6 @@ class LibraryUpdateService(
         fun stop(context: Context) {
             context.stopService(Intent(context, LibraryUpdateService::class.java))
         }
-
     }
 
     /**
@@ -160,7 +177,7 @@ class LibraryUpdateService(
      */
     override fun onCreate() {
         super.onCreate()
-        startForeground(Notifications.ID_LIBRARY_PROGRESS, progressNotification.build())
+        startForeground(Notifications.ID_LIBRARY_PROGRESS, progressNotificationBuilder.build())
         wakeLock = (getSystemService(Context.POWER_SERVICE) as PowerManager).newWakeLock(
                 PowerManager.PARTIAL_WAKE_LOCK, "LibraryUpdateService:WakeLock")
         wakeLock.acquire()
@@ -194,9 +211,9 @@ class LibraryUpdateService(
      * @return the start value of the command.
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent == null) return Service.START_NOT_STICKY
+        if (intent == null) return START_NOT_STICKY
         val target = intent.getSerializableExtra(KEY_TARGET) as? Target
-                ?: return Service.START_NOT_STICKY
+                ?: return START_NOT_STICKY
 
         // Unsubscribe from any previous subscription if needed.
         subscription?.unsubscribe()
@@ -204,7 +221,9 @@ class LibraryUpdateService(
         // Update favorite manga. Destroy service when completed or in case of an error.
         subscription = Observable
                 .defer {
+                    val selectedScheme = preferences.libraryUpdatePrioritization().getOrDefault()
                     val mangaList = getMangaToUpdate(intent, target)
+                            .sortedWith(rankingScheme[selectedScheme])
 
                     // Update either chapter list or manga details.
                     when (target) {
@@ -246,7 +265,6 @@ class LibraryUpdateService(
             else
                 db.getLibraryMangas().executeAsBlocking().distinctBy { it.id }
         }
-
         if (target == Target.CHAPTERS && preferences.updateOnlyNonCompleted()) {
             listToUpdate = listToUpdate.filter { it.status != SManga.COMPLETED }
         }
@@ -267,8 +285,8 @@ class LibraryUpdateService(
         // Initialize the variables holding the progress of the updates.
         val count = AtomicInteger(0)
         // List containing new updates
-        val newUpdates = ArrayList<Manga>()
-        // list containing failed updates
+        val newUpdates = ArrayList<Pair<LibraryManga, Array<Chapter>>>()
+        // List containing failed updates
         val failedUpdates = ArrayList<Manga>()
         // List containing categories that get included in downloads.
         val categoriesToDownload = preferences.downloadNewCategories().getOrDefault().map(String::toInt)
@@ -293,14 +311,19 @@ class LibraryUpdateService(
                             .filter { pair -> pair.first.isNotEmpty() }
                             .doOnNext {
                                 if (downloadNew && (categoriesToDownload.isEmpty() ||
-                                        manga.category in categoriesToDownload)) {
+                                                manga.category in categoriesToDownload)) {
 
                                     downloadChapters(manga, it.first)
                                     hasDownloads = true
                                 }
                             }
                             // Convert to the manga that contains new chapters.
-                            .map { manga }
+                            .map {
+                                Pair(
+                                        manga,
+                                        (it.first.sortedByDescending { ch -> ch.source_order }.toTypedArray())
+                                )
+                            }
                 }
                 // Add manga with new chapters to the list.
                 .doOnNext { manga ->
@@ -310,7 +333,7 @@ class LibraryUpdateService(
                 // Notify result of the overall update.
                 .doOnCompleted {
                     if (newUpdates.isNotEmpty()) {
-                        showResultNotification(newUpdates)
+                        showUpdateNotifications(newUpdates)
                         if (downloadNew && hasDownloads) {
                             DownloadService.start(this)
                         }
@@ -322,6 +345,7 @@ class LibraryUpdateService(
 
                     cancelProgressNotification()
                 }
+                .map { manga -> manga.first }
     }
 
     fun downloadChapters(manga: Manga, chapters: List<Chapter>) {
@@ -424,8 +448,13 @@ class LibraryUpdateService(
      * @param total the total progress.
      */
     private fun showProgressNotification(manga: Manga, current: Int, total: Int) {
-        notificationManager.notify(Notifications.ID_LIBRARY_PROGRESS, progressNotification
-                .setContentTitle(manga.title)
+        val title = if (preferences.hideNotificationContent())
+            getString(R.string.notification_check_updates)
+        else
+            manga.title
+
+        notificationManager.notify(Notifications.ID_LIBRARY_PROGRESS, progressNotificationBuilder
+                .setContentTitle(title)
                 .setProgress(total, current, false)
                 .build())
     }
@@ -435,39 +464,81 @@ class LibraryUpdateService(
      *
      * @param updates a list of manga with new updates.
      */
-    private fun showResultNotification(updates: List<Manga>) {
-        val newUpdates = updates.map { it.title.chop(45) }.toMutableSet()
+    private fun showUpdateNotifications(updates: List<Pair<Manga, Array<Chapter>>>) {
+        if (updates.isEmpty()) {
+            return
+        }
 
-        // Append new chapters from a previous, existing notification
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val previousNotification = notificationManager.activeNotifications
-                    .find { it.id == Notifications.ID_LIBRARY_RESULT }
+        NotificationManagerCompat.from(this).apply {
+            // Parent group notification
+            notify(Notifications.ID_NEW_CHAPTERS, notification(Notifications.CHANNEL_NEW_CHAPTERS) {
+                setContentTitle(getString(R.string.notification_new_chapters))
+                if (updates.size == 1 && !preferences.hideNotificationContent()) {
+                    setContentText(updates.first().first.title.chop(NOTIF_TITLE_MAX_LEN))
+                } else {
+                    setContentText(resources.getQuantityString(R.plurals.notification_new_chapters_summary, updates.size, updates.size))
 
-            if (previousNotification != null) {
-                val oldUpdates = previousNotification.notification.extras
-                        .getString(Notification.EXTRA_BIG_TEXT)
+                    if (!preferences.hideNotificationContent()) {
+                        setStyle(NotificationCompat.BigTextStyle().bigText(updates.joinToString("\n") {
+                            it.first.title.chop(NOTIF_TITLE_MAX_LEN)
+                        }))
+                    }
+                }
 
-                if (!oldUpdates.isNullOrEmpty()) {
-                    newUpdates += oldUpdates.split("\n")
+                setSmallIcon(R.drawable.ic_tachi)
+                setLargeIcon(notificationBitmap)
+
+                setGroup(Notifications.GROUP_NEW_CHAPTERS)
+                setGroupAlertBehavior(GROUP_ALERT_SUMMARY)
+                setGroupSummary(true)
+                priority = NotificationCompat.PRIORITY_HIGH
+
+                setContentIntent(getNotificationIntent())
+                setAutoCancel(true)
+            })
+
+            // Per-manga notification
+            if (!preferences.hideNotificationContent()) {
+                updates.forEach {
+                    val (manga, chapters) = it
+                    notify(manga.id.hashCode(), createNewChaptersNotification(manga, chapters))
                 }
             }
         }
+    }
 
-        notificationManager.notify(Notifications.ID_LIBRARY_RESULT, notification(Notifications.CHANNEL_LIBRARY) {
-            setSmallIcon(R.drawable.ic_book_white_24dp)
-            setLargeIcon(notificationBitmap)
-            setContentTitle(getString(R.string.notification_new_chapters))
-            if (newUpdates.size > 1) {
-                setContentText(getString(R.string.notification_new_chapters_text, newUpdates.size))
-                setStyle(NotificationCompat.BigTextStyle().bigText(newUpdates.joinToString("\n")))
-                setNumber(newUpdates.size)
-            } else {
-                setContentText(newUpdates.first())
+    private fun createNewChaptersNotification(manga: Manga, chapters: Array<Chapter>): Notification {
+        return notification(Notifications.CHANNEL_NEW_CHAPTERS) {
+            setContentTitle(manga.title)
+
+            val description = getNewChaptersDescription(chapters)
+            setContentText(description)
+            setStyle(NotificationCompat.BigTextStyle().bigText(description))
+
+            setSmallIcon(R.drawable.ic_tachi)
+
+            val icon = getMangaIcon(manga)
+            if (icon != null) {
+                setLargeIcon(icon)
             }
+
+            setGroup(Notifications.GROUP_NEW_CHAPTERS)
+            setGroupAlertBehavior(GROUP_ALERT_SUMMARY)
             priority = NotificationCompat.PRIORITY_HIGH
-            setContentIntent(getNotificationIntent())
+
+            // Open first chapter on tap
+            setContentIntent(NotificationReceiver.openChapterPendingActivity(this@LibraryUpdateService, manga, chapters.first()))
             setAutoCancel(true)
-        })
+
+            // Mark chapters as read action
+            addAction(R.drawable.ic_glasses_black_24dp, getString(R.string.action_mark_as_read),
+                    NotificationReceiver.markAsReadPendingBroadcast(this@LibraryUpdateService,
+                            manga, chapters, Notifications.ID_NEW_CHAPTERS))
+            // View chapters action
+            addAction(R.drawable.ic_book_white_24dp, getString(R.string.action_view_chapters),
+                    NotificationReceiver.openChapterPendingActivity(this@LibraryUpdateService,
+                            manga, Notifications.ID_NEW_CHAPTERS))
+        }
     }
 
     /**
@@ -477,14 +548,73 @@ class LibraryUpdateService(
         notificationManager.cancel(Notifications.ID_LIBRARY_PROGRESS)
     }
 
+    private fun getMangaIcon(manga: Manga): Bitmap? {
+        return try {
+            Glide.with(this)
+                    .asBitmap()
+                    .load(manga)
+                    .dontTransform()
+                    .centerCrop()
+                    .circleCrop()
+                    .override(NOTIF_ICON_SIZE, NOTIF_ICON_SIZE)
+                    .submit()
+                    .get()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun getNewChaptersDescription(chapters: Array<Chapter>): String {
+        val formatter = DecimalFormat("#.###", DecimalFormatSymbols()
+                .apply { decimalSeparator = '.' })
+
+        val displayableChapterNumbers = chapters
+                .filter { it.isRecognizedNumber }
+                .sortedBy { it.chapter_number }
+                .map { formatter.format(it.chapter_number) }
+                .toSet()
+
+        return when (displayableChapterNumbers.size) {
+            // No sensible chapter numbers to show (i.e. no chapters have parsed chapter number)
+            0 -> {
+                // "1 new chapter" or "5 new chapters"
+                resources.getQuantityString(R.plurals.notification_chapters_generic, chapters.size, chapters.size)
+            }
+            // Only 1 chapter has a parsed chapter number
+            1 -> {
+                val remaining = chapters.size - displayableChapterNumbers.size
+                if (remaining == 0) {
+                    // "Chapter 2.5"
+                    resources.getString(R.string.notification_chapters_single, displayableChapterNumbers.first())
+                } else {
+                    // "Chapter 2.5 and 10 more"
+                    resources.getString(R.string.notification_chapters_single_and_more, displayableChapterNumbers.first(), remaining)
+                }
+            }
+            // Everything else (i.e. multiple parsed chapter numbers)
+            else -> {
+                val shouldTruncate = displayableChapterNumbers.size > NOTIF_MAX_CHAPTERS
+                if (shouldTruncate) {
+                    // "Chapters 1, 2.5, 3, 4, 5 and 10 more"
+                    val remaining = displayableChapterNumbers.size - NOTIF_MAX_CHAPTERS
+                    val joinedChapterNumbers = displayableChapterNumbers.take(NOTIF_MAX_CHAPTERS).joinToString(", ")
+                    resources.getQuantityString(R.plurals.notification_chapters_multiple_and_more, remaining, joinedChapterNumbers, remaining)
+                } else {
+                    // "Chapters 1, 2.5, 3"
+                    resources.getString(R.string.notification_chapters_multiple, displayableChapterNumbers.joinToString(","))
+                }
+            }
+        }
+    }
+
     /**
      * Returns an intent to open the main activity.
      */
     private fun getNotificationIntent(): PendingIntent {
-        val intent = Intent(this, MainActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-        intent.action = MainActivity.SHORTCUT_RECENTLY_UPDATED
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            action = MainActivity.SHORTCUT_RECENTLY_UPDATED
+        }
         return PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
     }
-
 }

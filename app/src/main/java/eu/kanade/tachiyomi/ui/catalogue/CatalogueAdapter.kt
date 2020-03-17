@@ -3,7 +3,7 @@ package eu.kanade.tachiyomi.ui.catalogue
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.util.getResourceColor
+import eu.kanade.tachiyomi.util.system.getResourceColor
 
 /**
  * Adapter that holds the catalogue cards.
@@ -13,7 +13,7 @@ import eu.kanade.tachiyomi.util.getResourceColor
 class CatalogueAdapter(val controller: CatalogueController) :
         FlexibleAdapter<IFlexible<*>>(null, controller, true) {
 
-    val cardBackground = controller.activity!!.getResourceColor(R.attr.background_card)
+    val cardBackground = controller.activity!!.getResourceColor(R.attr.colorSurface)
 
     init {
         setDisplayHeadersAtStartUp(true)
@@ -45,4 +45,3 @@ class CatalogueAdapter(val controller: CatalogueController) :
         fun onLatestClick(position: Int)
     }
 }
-

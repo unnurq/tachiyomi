@@ -8,7 +8,7 @@ import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.data.track.TrackManager
 import eu.kanade.tachiyomi.data.track.TrackService
 import eu.kanade.tachiyomi.ui.base.presenter.BasePresenter
-import eu.kanade.tachiyomi.util.toast
+import eu.kanade.tachiyomi.util.system.toast
 import rx.Observable
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
@@ -16,12 +16,11 @@ import rx.schedulers.Schedulers
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
-
 class TrackPresenter(
-        val manga: Manga,
-        preferences: PreferencesHelper = Injekt.get(),
-        private val db: DatabaseHelper = Injekt.get(),
-        private val trackManager: TrackManager = Injekt.get()
+    val manga: Manga,
+    preferences: PreferencesHelper = Injekt.get(),
+    private val db: DatabaseHelper = Injekt.get(),
+    private val trackManager: TrackManager = Injekt.get()
 ) : BasePresenter<TrackController>() {
 
     private val context = preferences.context
@@ -91,8 +90,12 @@ class TrackPresenter(
                     .subscribe({ },
                             { error -> context.toast(error.message) }))
         } else {
-            db.deleteTrackForManga(manga, service).executeAsBlocking()
+            unregisterTracking(service)
         }
+    }
+
+    fun unregisterTracking(service: TrackService) {
+        db.deleteTrackForManga(manga, service).executeAsBlocking()
     }
 
     private fun updateRemote(track: Track, service: TrackService) {
@@ -112,6 +115,9 @@ class TrackPresenter(
     fun setStatus(item: TrackItem, index: Int) {
         val track = item.track!!
         track.status = item.service.getStatusList()[index]
+        if (track.status == item.service.getCompletionStatus() && track.total_chapters != 0) {
+            track.last_chapter_read = track.total_chapters
+        }
         updateRemote(track, item.service)
     }
 
@@ -124,7 +130,9 @@ class TrackPresenter(
     fun setLastChapterRead(item: TrackItem, chapterNumber: Int) {
         val track = item.track!!
         track.last_chapter_read = chapterNumber
+        if (track.total_chapters != 0 && track.last_chapter_read == track.total_chapters) {
+            track.status = item.service.getCompletionStatus()
+        }
         updateRemote(track, item.service)
     }
-
 }

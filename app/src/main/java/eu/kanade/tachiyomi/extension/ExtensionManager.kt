@@ -12,11 +12,9 @@ import eu.kanade.tachiyomi.extension.util.ExtensionInstallReceiver
 import eu.kanade.tachiyomi.extension.util.ExtensionInstaller
 import eu.kanade.tachiyomi.extension.util.ExtensionLoader
 import eu.kanade.tachiyomi.source.SourceManager
-import eu.kanade.tachiyomi.util.launchNow
-import kotlinx.coroutines.experimental.async
+import eu.kanade.tachiyomi.util.lang.launchNow
+import kotlinx.coroutines.async
 import rx.Observable
-import rx.android.schedulers.AndroidSchedulers
-import rx.schedulers.Schedulers
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
@@ -31,8 +29,8 @@ import uy.kohesive.injekt.api.get
  * @param preferences The application preferences.
  */
 class ExtensionManager(
-        private val context: Context,
-        private val preferences: PreferencesHelper = Injekt.get()
+    private val context: Context,
+    private val preferences: PreferencesHelper = Injekt.get()
 ) {
 
     /**
@@ -71,7 +69,7 @@ class ExtensionManager(
         private set(value) {
             field = value
             availableExtensionsRelay.call(value)
-            setUpdateFieldOfInstalledExtensions(value)
+            updatedInstalledExtensionsStatuses(value)
         }
 
     /**
@@ -146,11 +144,15 @@ class ExtensionManager(
      * Finds the available extensions in the [api] and updates [availableExtensions].
      */
     fun findAvailableExtensions() {
-        api.findExtensions()
-                .onErrorReturn { emptyList() }
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe { availableExtensions = it }
+        launchNow {
+            val extensions: List<Extension.Available> = try {
+                api.findExtensions()
+            } catch (e: Exception) {
+                emptyList()
+            }
+
+            availableExtensions = extensions
+        }
     }
 
     /**
@@ -158,18 +160,27 @@ class ExtensionManager(
      *
      * @param availableExtensions The list of extensions given by the [api].
      */
-    private fun setUpdateFieldOfInstalledExtensions(availableExtensions: List<Extension.Available>) {
+    private fun updatedInstalledExtensionsStatuses(availableExtensions: List<Extension.Available>) {
+        if (availableExtensions.isEmpty()) {
+            return
+        }
+
         val mutInstalledExtensions = installedExtensions.toMutableList()
         var changed = false
 
         for ((index, installedExt) in mutInstalledExtensions.withIndex()) {
             val pkgName = installedExt.pkgName
-            val availableExt = availableExtensions.find { it.pkgName == pkgName } ?: continue
+            val availableExt = availableExtensions.find { it.pkgName == pkgName }
 
-            val hasUpdate = availableExt.versionCode > installedExt.versionCode
-            if (installedExt.hasUpdate != hasUpdate) {
-                mutInstalledExtensions[index] = installedExt.copy(hasUpdate = hasUpdate)
+            if (availableExt == null && !installedExt.isObsolete) {
+                mutInstalledExtensions[index] = installedExt.copy(isObsolete = true)
                 changed = true
+            } else if (availableExt != null) {
+                val hasUpdate = availableExt.versionCode > installedExt.versionCode
+                if (installedExt.hasUpdate != hasUpdate) {
+                    mutInstalledExtensions[index] = installedExt.copy(hasUpdate = hasUpdate)
+                    changed = true
+                }
             }
         }
         if (changed) {
@@ -195,7 +206,7 @@ class ExtensionManager(
      *
      * @param extension The extension to be updated.
      */
-    fun updateExtension(extension: Extension.Installed): Observable<InstallStep>  {
+    fun updateExtension(extension: Extension.Installed): Observable<InstallStep> {
         val availableExt = availableExtensions.find { it.pkgName == extension.pkgName }
                 ?: return Observable.empty()
         return installExtension(availableExt)
@@ -330,5 +341,4 @@ class ExtensionManager(
         }
         return this
     }
-
 }

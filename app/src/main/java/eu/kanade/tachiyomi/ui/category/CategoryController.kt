@@ -1,11 +1,15 @@
 package eu.kanade.tachiyomi.ui.category
 
-import android.support.design.widget.Snackbar
-import android.support.v7.app.AppCompatActivity
-import android.support.v7.view.ActionMode
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
-import android.view.*
+import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.view.ViewGroup
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.ActionMode
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.snackbar.Snackbar
 import com.jakewharton.rxbinding.view.clicks
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.SelectableAdapter
@@ -13,8 +17,10 @@ import eu.davidea.flexibleadapter.helpers.UndoHelper
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.database.models.Category
 import eu.kanade.tachiyomi.ui.base.controller.NucleusController
-import eu.kanade.tachiyomi.util.toast
-import kotlinx.android.synthetic.main.categories_controller.*
+import eu.kanade.tachiyomi.util.system.toast
+import kotlinx.android.synthetic.main.categories_controller.empty_view
+import kotlinx.android.synthetic.main.categories_controller.fab
+import kotlinx.android.synthetic.main.categories_controller.recycler
 
 /**
  * Controller to manage the categories for the users' library.
@@ -114,7 +120,7 @@ class CategoryController : NucleusController<CategoryPresenter>(),
                 selected.forEach { onItemLongClick(categories.indexOf(it)) }
             }
         } else {
-            empty_view.show(R.drawable.ic_shape_black_128dp, R.string.information_empty_category)
+            empty_view.show(R.string.information_empty_category)
         }
     }
 
@@ -145,7 +151,7 @@ class CategoryController : NucleusController<CategoryPresenter>(),
     override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
         val adapter = adapter ?: return false
         val count = adapter.selectedItemCount
-        mode.title = resources?.getString(R.string.label_selected, count)
+        mode.title = count.toString()
 
         // Show edit button only when one item is selected
         val editItem = mode.menu.findItem(R.id.action_edit)
@@ -205,13 +211,13 @@ class CategoryController : NucleusController<CategoryPresenter>(),
      * @param position The position of the clicked item.
      * @return true if this click should enable selection mode.
      */
-    override fun onItemClick(position: Int): Boolean {
+    override fun onItemClick(view: View, position: Int): Boolean {
         // Check if action mode is initialized and selected item exist.
-        if (actionMode != null && position != RecyclerView.NO_POSITION) {
+        return if (actionMode != null && position != RecyclerView.NO_POSITION) {
             toggleSelection(position)
-            return true
+            true
         } else {
-            return false
+            false
         }
     }
 
@@ -242,7 +248,7 @@ class CategoryController : NucleusController<CategoryPresenter>(),
     private fun toggleSelection(position: Int) {
         val adapter = adapter ?: return
 
-        //Mark the position selected
+        // Mark the position selected
         adapter.toggleSelection(position)
 
         if (adapter.selectedItemCount == 0) {
@@ -319,5 +325,4 @@ class CategoryController : NucleusController<CategoryPresenter>(),
     fun onCategoryExistsError() {
         activity?.toast(R.string.error_category_exists)
     }
-
 }

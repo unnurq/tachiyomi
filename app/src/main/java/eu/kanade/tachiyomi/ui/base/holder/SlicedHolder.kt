@@ -1,12 +1,11 @@
 package eu.kanade.tachiyomi.ui.base.holder
 
-import android.os.Build
 import android.view.View
 import android.view.ViewGroup
 import eu.davidea.flexibleadapter.FlexibleAdapter
 import eu.davidea.flexibleadapter.items.IFlexible
 import eu.davidea.flexibleadapter.items.ISectionable
-import eu.kanade.tachiyomi.util.dpToPx
+import eu.kanade.tachiyomi.util.system.dpToPx
 import io.github.mthli.slice.Slice
 
 interface SlicedHolder {
@@ -42,8 +41,13 @@ interface SlicedHolder {
         }
     }
 
-    private fun applySlice(radius: Float, topRect: Boolean, bottomRect: Boolean,
-                           topShadow: Boolean, bottomShadow: Boolean) {
+    private fun applySlice(
+        radius: Float,
+        topRect: Boolean,
+        bottomRect: Boolean,
+        topShadow: Boolean,
+        bottomShadow: Boolean
+    ) {
         val margin = margin
 
         slice.setRadius(radius)
@@ -51,10 +55,6 @@ interface SlicedHolder {
         slice.showRightTopRect(topRect)
         slice.showLeftBottomRect(bottomRect)
         slice.showRightBottomRect(bottomRect)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
-            slice.showTopEdgeShadow(topShadow)
-            slice.showBottomEdgeShadow(bottomShadow)
-        }
         setMargins(margin, if (topShadow) margin else 0, margin, if (bottomShadow) margin else 0)
     }
 
@@ -67,5 +67,4 @@ interface SlicedHolder {
 
     val margin
         get() = 8.dpToPx
-
 }

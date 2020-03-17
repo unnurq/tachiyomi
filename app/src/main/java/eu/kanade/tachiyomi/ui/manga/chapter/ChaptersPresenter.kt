@@ -12,8 +12,9 @@ import eu.kanade.tachiyomi.data.preference.PreferencesHelper
 import eu.kanade.tachiyomi.source.LocalSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.ui.base.presenter.BasePresenter
-import eu.kanade.tachiyomi.util.isNullOrUnsubscribed
-import eu.kanade.tachiyomi.util.syncChaptersWithSource
+import eu.kanade.tachiyomi.util.chapter.syncChaptersWithSource
+import eu.kanade.tachiyomi.util.lang.isNullOrUnsubscribed
+import java.util.Date
 import rx.Observable
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
@@ -21,20 +22,19 @@ import rx.schedulers.Schedulers
 import timber.log.Timber
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.util.Date
 
 /**
  * Presenter of [ChaptersController].
  */
 class ChaptersPresenter(
-        val manga: Manga,
-        val source: Source,
-        private val chapterCountRelay: BehaviorRelay<Float>,
-        private val lastUpdateRelay: BehaviorRelay<Date>,
-        private val mangaFavoriteRelay: PublishRelay<Boolean>,
-        val preferences: PreferencesHelper = Injekt.get(),
-        private val db: DatabaseHelper = Injekt.get(),
-        private val downloadManager: DownloadManager = Injekt.get()
+    val manga: Manga,
+    val source: Source,
+    private val chapterCountRelay: BehaviorRelay<Float>,
+    private val lastUpdateRelay: BehaviorRelay<Date>,
+    private val mangaFavoriteRelay: PublishRelay<Boolean>,
+    val preferences: PreferencesHelper = Injekt.get(),
+    private val db: DatabaseHelper = Injekt.get(),
+    private val downloadManager: DownloadManager = Injekt.get()
 ) : BasePresenter<ChaptersController>() {
 
     /**
@@ -98,7 +98,6 @@ class ChaptersPresenter(
                     // Emit the upload date of the most recent chapter
                     lastUpdateRelay.call(Date(chapters.maxBy { it.date_upload }?.date_upload
                             ?: 0))
-
                 }
                 .subscribe { chaptersRelay.call(it) })
     }
@@ -109,8 +108,9 @@ class ChaptersPresenter(
                 .observeOn(AndroidSchedulers.mainThread())
                 .filter { download -> download.manga.id == manga.id }
                 .doOnNext { onDownloadStatusChange(it) }
-                .subscribeLatestCache(ChaptersController::onChapterStatusChange,
-                        { _, error -> Timber.e(error) })
+                .subscribeLatestCache(ChaptersController::onChapterStatusChange) { _, error ->
+                    Timber.e(error)
+                }
     }
 
     /**
@@ -175,8 +175,7 @@ class ChaptersPresenter(
         var observable = Observable.from(chapters).subscribeOn(Schedulers.io())
         if (onlyUnread()) {
             observable = observable.filter { !it.read }
-        }
-        else if (onlyRead()) {
+        } else if (onlyRead()) {
             observable = observable.filter { it.read }
         }
         if (onlyDownloaded()) {
@@ -278,7 +277,7 @@ class ChaptersPresenter(
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribeFirst({ view, _ ->
-                    view.onChaptersDeleted()
+                    view.onChaptersDeleted(chapters)
                 }, ChaptersController::onChaptersDeletedError)
     }
 
@@ -414,5 +413,4 @@ class ChaptersPresenter(
     fun sortDescending(): Boolean {
         return manga.sortDescending()
     }
-
 }

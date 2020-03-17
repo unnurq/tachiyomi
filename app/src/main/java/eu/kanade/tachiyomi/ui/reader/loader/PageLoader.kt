@@ -1,6 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.loader
 
-import android.support.annotation.CallSuper
+import androidx.annotation.CallSuper
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import rx.Observable
 
@@ -42,5 +42,4 @@ abstract class PageLoader {
      * online source is used.
      */
     open fun retryPage(page: ReaderPage) {}
-
 }

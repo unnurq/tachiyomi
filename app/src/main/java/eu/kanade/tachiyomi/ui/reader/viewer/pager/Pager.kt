@@ -1,10 +1,10 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.pager
 
 import android.content.Context
-import android.support.v4.view.DirectionalViewPager
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
+import androidx.viewpager.widget.DirectionalViewPager
 import eu.kanade.tachiyomi.ui.reader.viewer.GestureDetectorWithLongTap
 
 /**
@@ -13,8 +13,8 @@ import eu.kanade.tachiyomi.ui.reader.viewer.GestureDetectorWithLongTap
  * pager can also be declared to be vertical by creating it with [isHorizontal] to false.
  */
 open class Pager(
-        context: Context,
-        isHorizontal: Boolean = true
+    context: Context,
+    isHorizontal: Boolean = true
 ) : DirectionalViewPager(context, isHorizontal) {
 
     /**
@@ -104,5 +104,4 @@ open class Pager(
     fun setGestureDetectorEnabled(enabled: Boolean) {
         isGestureDetectorEnabled = enabled
     }
-
 }

@@ -11,7 +11,7 @@ import eu.kanade.tachiyomi.data.database.resolvers.ChapterProgressPutResolver
 import eu.kanade.tachiyomi.data.database.resolvers.ChapterSourceOrderPutResolver
 import eu.kanade.tachiyomi.data.database.resolvers.MangaChapterGetResolver
 import eu.kanade.tachiyomi.data.database.tables.ChapterTable
-import java.util.*
+import java.util.Date
 
 interface ChapterQueries : DbProvider {
 
@@ -52,6 +52,14 @@ interface ChapterQueries : DbProvider {
                     .build())
             .prepare()
 
+    fun getChapter(url: String, mangaId: Long) = db.get()
+            .`object`(Chapter::class.java)
+            .withQuery(Query.builder()
+                    .table(ChapterTable.TABLE)
+                    .where("${ChapterTable.COL_URL} = ? AND ${ChapterTable.COL_MANGA_ID} = ?")
+                    .whereArgs(url, mangaId)
+                    .build())
+            .prepare()
 
     fun insertChapter(chapter: Chapter) = db.put().`object`(chapter).prepare()
 
@@ -80,5 +88,4 @@ interface ChapterQueries : DbProvider {
             .objects(chapters)
             .withPutResolver(ChapterSourceOrderPutResolver())
             .prepare()
-
 }

@@ -1,8 +1,6 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
 import android.graphics.Typeface
-import android.support.v7.widget.AppCompatButton
-import android.support.v7.widget.AppCompatTextView
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.StyleSpan
@@ -12,11 +10,13 @@ import android.view.ViewGroup.LayoutParams.WRAP_CONTENT
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.appcompat.widget.AppCompatButton
+import androidx.appcompat.widget.AppCompatTextView
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
-import eu.kanade.tachiyomi.util.dpToPx
-import eu.kanade.tachiyomi.util.visibleIf
+import eu.kanade.tachiyomi.util.system.dpToPx
+import eu.kanade.tachiyomi.util.view.visibleIf
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
 
@@ -24,8 +24,8 @@ import rx.android.schedulers.AndroidSchedulers
  * Holder of the webtoon viewer that contains a chapter transition.
  */
 class WebtoonTransitionHolder(
-        val layout: LinearLayout,
-        viewer: WebtoonViewer
+    val layout: LinearLayout,
+    viewer: WebtoonViewer
 ) : WebtoonBaseHolder(layout, viewer) {
 
     /**
@@ -36,7 +36,10 @@ class WebtoonTransitionHolder(
     /**
      * Text view used to display the text of the current and next/prev chapters.
      */
-    private var textView = TextView(context)
+    private var textView = TextView(context).apply {
+        textSize = 17.5F
+        wrapContent()
+    }
 
     /**
      * View container of the current status of the transition page. Child views will be added
@@ -140,17 +143,18 @@ class WebtoonTransitionHolder(
         unsubscribeStatus()
 
         statusSubscription = chapter.stateObserver
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe { state ->
-                pagesContainer.removeAllViews()
-                when (state) {
-                    is ReaderChapter.State.Wait -> {}
-                    is ReaderChapter.State.Loading -> setLoading()
-                    is ReaderChapter.State.Error -> setError(state.error, transition)
-                    is ReaderChapter.State.Loaded -> setLoaded()
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe { state ->
+                    pagesContainer.removeAllViews()
+                    when (state) {
+                        is ReaderChapter.State.Wait -> {
+                        }
+                        is ReaderChapter.State.Loading -> setLoading()
+                        is ReaderChapter.State.Error -> setError(state.error, transition)
+                        is ReaderChapter.State.Loaded -> setLoaded()
+                    }
+                    pagesContainer.visibleIf { pagesContainer.childCount > 0 }
                 }
-                pagesContainer.visibleIf { pagesContainer.childCount > 0 }
-            }
 
         addSubscription(statusSubscription)
     }
@@ -208,5 +212,4 @@ class WebtoonTransitionHolder(
         pagesContainer.addView(textView)
         pagesContainer.addView(retryBtn)
     }
-
 }

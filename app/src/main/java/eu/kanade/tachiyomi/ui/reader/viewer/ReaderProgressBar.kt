@@ -15,7 +15,9 @@ import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import android.view.animation.RotateAnimation
 import eu.kanade.tachiyomi.R
-import eu.kanade.tachiyomi.util.getResourceColor
+import eu.kanade.tachiyomi.util.system.getResourceColor
+import eu.kanade.tachiyomi.util.view.gone
+import kotlin.math.min
 
 /**
  * A custom progress bar that always rotates while being determinate. By always rotating we give
@@ -23,9 +25,9 @@ import eu.kanade.tachiyomi.util.getResourceColor
  * user also approximately knows how much the operation will take.
  */
 class ReaderProgressBar @JvmOverloads constructor(
-        context: Context,
-        attrs: AttributeSet? = null,
-        defStyleAttr: Int = 0
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
 
     /**
@@ -75,7 +77,7 @@ class ReaderProgressBar @JvmOverloads constructor(
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
 
-        val diameter = Math.min(width, height)
+        val diameter = min(width, height)
         val thickness = diameter / 10f
         val pad = thickness / 2f
         ovalRect.set(pad, pad, diameter - pad, diameter - pad)
@@ -154,14 +156,14 @@ class ReaderProgressBar @JvmOverloads constructor(
         if (visibility == View.GONE) return
 
         if (!animate) {
-            visibility = View.GONE
+            gone()
         } else {
-            ObjectAnimator.ofFloat(this, "alpha",  1f, 0f).apply {
+            ObjectAnimator.ofFloat(this, "alpha", 1f, 0f).apply {
                 interpolator = DecelerateInterpolator()
                 duration = 1000
                 addListener(object : AnimatorListenerAdapter() {
                     override fun onAnimationEnd(animation: Animator?) {
-                        visibility = View.GONE
+                        gone()
                         alpha = 1f
                     }
 
@@ -208,5 +210,4 @@ class ReaderProgressBar @JvmOverloads constructor(
             start()
         }
     }
-
 }

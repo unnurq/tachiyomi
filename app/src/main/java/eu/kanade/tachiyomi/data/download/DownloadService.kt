@@ -9,17 +9,17 @@ import android.net.NetworkInfo.State.DISCONNECTED
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import android.support.v4.app.NotificationCompat
 import com.github.pwittchen.reactivenetwork.library.Connectivity
 import com.github.pwittchen.reactivenetwork.library.ReactiveNetwork
 import com.jakewharton.rxrelay.BehaviorRelay
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.data.preference.PreferencesHelper
-import eu.kanade.tachiyomi.util.connectivityManager
-import eu.kanade.tachiyomi.util.plusAssign
-import eu.kanade.tachiyomi.util.powerManager
-import eu.kanade.tachiyomi.util.toast
+import eu.kanade.tachiyomi.util.lang.plusAssign
+import eu.kanade.tachiyomi.util.system.connectivityManager
+import eu.kanade.tachiyomi.util.system.notification
+import eu.kanade.tachiyomi.util.system.powerManager
+import eu.kanade.tachiyomi.util.system.toast
 import rx.android.schedulers.AndroidSchedulers
 import rx.schedulers.Schedulers
 import rx.subscriptions.CompositeSubscription
@@ -131,8 +131,9 @@ class DownloadService : Service() {
         subscriptions += ReactiveNetwork.observeNetworkConnectivity(applicationContext)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe({ state -> onNetworkStateChanged(state)
-                }, { _ ->
+                .subscribe({ state ->
+                    onNetworkStateChanged(state)
+                }, {
                     toast(R.string.download_queue_error)
                     stopSelf()
                 })
@@ -156,7 +157,9 @@ class DownloadService : Service() {
             DISCONNECTED -> {
                 downloadManager.stopDownloads(getString(R.string.download_notifier_no_network))
             }
-            else -> { /* Do nothing */ }
+            else -> {
+                /* Do nothing */
+            }
         }
     }
 
@@ -187,9 +190,8 @@ class DownloadService : Service() {
     }
 
     private fun getPlaceholderNotification(): Notification {
-        return NotificationCompat.Builder(this, Notifications.CHANNEL_DOWNLOADER)
-            .setContentTitle(getString(R.string.download_notifier_downloader_title))
-            .build()
+        return notification(Notifications.CHANNEL_DOWNLOADER) {
+            setContentTitle(getString(R.string.download_notifier_downloader_title))
+        }
     }
-
 }

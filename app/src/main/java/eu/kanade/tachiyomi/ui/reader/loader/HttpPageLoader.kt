@@ -5,7 +5,10 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
-import eu.kanade.tachiyomi.util.plusAssign
+import eu.kanade.tachiyomi.util.lang.plusAssign
+import java.util.concurrent.PriorityBlockingQueue
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.math.min
 import rx.Completable
 import rx.Observable
 import rx.schedulers.Schedulers
@@ -15,16 +18,14 @@ import rx.subscriptions.CompositeSubscription
 import timber.log.Timber
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import java.util.concurrent.PriorityBlockingQueue
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Loader used to load chapters from an online source.
  */
 class HttpPageLoader(
-        private val chapter: ReaderChapter,
-        private val source: HttpSource,
-        private val chapterCache: ChapterCache = Injekt.get()
+    private val chapter: ReaderChapter,
+    private val source: HttpSource,
+    private val chapterCache: ChapterCache = Injekt.get()
 ) : PageLoader() {
 
     /**
@@ -37,18 +38,20 @@ class HttpPageLoader(
      */
     private val subscriptions = CompositeSubscription()
 
+    private val preloadSize = 4
+
     init {
         subscriptions += Observable.defer { Observable.just(queue.take().page) }
-            .filter { it.status == Page.QUEUE }
-            .concatMap { source.fetchImageFromCacheThenNet(it) }
-            .repeat()
-            .subscribeOn(Schedulers.io())
-            .subscribe({
-            }, { error ->
-                if (error !is InterruptedException) {
-                    Timber.e(error)
-                }
-            })
+                .filter { it.status == Page.QUEUE }
+                .concatMap { source.fetchImageFromCacheThenNet(it) }
+                .repeat()
+                .subscribeOn(Schedulers.io())
+                .subscribe({
+                }, { error ->
+                    if (error !is InterruptedException) {
+                        Timber.e(error)
+                    }
+                })
     }
 
     /**
@@ -63,14 +66,14 @@ class HttpPageLoader(
         val pages = chapter.pages
         if (pages != null) {
             Completable
-                .fromAction {
-                    // Convert to pages without reader information
-                    val pagesToSave = pages.map { Page(it.index, it.url, it.imageUrl) }
-                    chapterCache.putPageListToCache(chapter.chapter, pagesToSave)
-                }
-                .onErrorComplete()
-                .subscribeOn(Schedulers.io())
-                .subscribe()
+                    .fromAction {
+                        // Convert to pages without reader information
+                        val pagesToSave = pages.map { Page(it.index, it.url, it.imageUrl) }
+                        chapterCache.putPageListToCache(chapter.chapter, pagesToSave)
+                    }
+                    .onErrorComplete()
+                    .subscribeOn(Schedulers.io())
+                    .subscribe()
         }
     }
 
@@ -80,13 +83,14 @@ class HttpPageLoader(
      */
     override fun getPages(): Observable<List<ReaderPage>> {
         return chapterCache
-            .getPageListFromCache(chapter.chapter)
-            .onErrorResumeNext { source.fetchPageList(chapter.chapter) }
-            .map { pages ->
-                pages.mapIndexed { index, page -> // Don't trust sources and use our own indexing
-                    ReaderPage(index, page.url, page.imageUrl)
+                .getPageListFromCache(chapter.chapter)
+                .onErrorResumeNext { source.fetchPageList(chapter.chapter) }
+                .map { pages ->
+                    pages.mapIndexed { index, page ->
+                        // Don't trust sources and use our own indexing
+                        ReaderPage(index, page.url, page.imageUrl)
+                    }
                 }
-            }
     }
 
     /**
@@ -110,29 +114,41 @@ class HttpPageLoader(
             val statusSubject = SerializedSubject(PublishSubject.create<Int>())
             page.setStatusSubject(statusSubject)
 
+            val queuedPages = mutableListOf<PriorityPage>()
             if (page.status == Page.QUEUE) {
-                queue.offer(PriorityPage(page, 1))
+                queuedPages += PriorityPage(page, 1).also { queue.offer(it) }
             }
-
-            preloadNextPages(page, 4)
+            queuedPages += preloadNextPages(page, preloadSize)
 
             statusSubject.startWith(page.status)
+                    .doOnUnsubscribe {
+                        queuedPages.forEach {
+                            if (it.page.status == Page.QUEUE) {
+                                queue.remove(it)
+                            }
+                        }
+                    }
         }
+                .subscribeOn(Schedulers.io())
+                .unsubscribeOn(Schedulers.io())
     }
 
     /**
      * Preloads the given [amount] of pages after the [currentPage] with a lower priority.
+     * @return a list of [PriorityPage] that were added to the [queue]
      */
-    private fun preloadNextPages(currentPage: ReaderPage, amount: Int) {
+    private fun preloadNextPages(currentPage: ReaderPage, amount: Int): List<PriorityPage> {
         val pageIndex = currentPage.index
-        val pages = currentPage.chapter.pages ?: return
-        if (pageIndex == pages.lastIndex) return
-        val nextPages = pages.subList(pageIndex + 1, Math.min(pageIndex + 1 + amount, pages.size))
-        for (nextPage in nextPages) {
-            if (nextPage.status == Page.QUEUE) {
-                queue.offer(PriorityPage(nextPage, 0))
-            }
-        }
+        val pages = currentPage.chapter.pages ?: return emptyList()
+        if (pageIndex == pages.lastIndex) return emptyList()
+
+        return pages
+                .subList(pageIndex + 1, min(pageIndex + 1 + amount, pages.size))
+                .mapNotNull {
+                    if (it.status == Page.QUEUE) {
+                        PriorityPage(it, 0).apply { queue.offer(this) }
+                    } else null
+                }
     }
 
     /**
@@ -148,11 +164,10 @@ class HttpPageLoader(
     /**
      * Data class used to keep ordering of pages in order to maintain priority.
      */
-    private data class PriorityPage(
-            val page: ReaderPage,
-            val priority: Int
-    ): Comparable<PriorityPage> {
-
+    private class PriorityPage(
+        val page: ReaderPage,
+        val priority: Int
+    ) : Comparable<PriorityPage> {
         companion object {
             private val idGenerator = AtomicInteger()
         }
@@ -163,7 +178,6 @@ class HttpPageLoader(
             val p = other.priority.compareTo(priority)
             return if (p != 0) p else identifier.compareTo(other.identifier)
         }
-
     }
 
     /**
@@ -181,10 +195,10 @@ class HttpPageLoader(
     private fun HttpSource.getImageUrl(page: ReaderPage): Observable<ReaderPage> {
         page.status = Page.LOAD_PAGE
         return fetchImageUrl(page)
-            .doOnError { page.status = Page.ERROR }
-            .onErrorReturn { null }
-            .doOnNext { page.imageUrl = it }
-            .map { page }
+                .doOnError { page.status = Page.ERROR }
+                .onErrorReturn { null }
+                .doOnNext { page.imageUrl = it }
+                .map { page }
     }
 
     /**
@@ -197,19 +211,19 @@ class HttpPageLoader(
         val imageUrl = page.imageUrl ?: return Observable.just(page)
 
         return Observable.just(page)
-            .flatMap {
-                if (!chapterCache.isImageInCache(imageUrl)) {
-                    cacheImage(page)
-                } else {
-                    Observable.just(page)
+                .flatMap {
+                    if (!chapterCache.isImageInCache(imageUrl)) {
+                        cacheImage(page)
+                    } else {
+                        Observable.just(page)
+                    }
                 }
-            }
-            .doOnNext {
-                page.stream = { chapterCache.getImageFile(imageUrl).inputStream() }
-                page.status = Page.READY
-            }
-            .doOnError { page.status = Page.ERROR }
-            .onErrorReturn { page }
+                .doOnNext {
+                    page.stream = { chapterCache.getImageFile(imageUrl).inputStream() }
+                    page.status = Page.READY
+                }
+                .doOnError { page.status = Page.ERROR }
+                .onErrorReturn { page }
     }
 
     /**
@@ -220,7 +234,7 @@ class HttpPageLoader(
     private fun HttpSource.cacheImage(page: ReaderPage): Observable<ReaderPage> {
         page.status = Page.DOWNLOAD_IMAGE
         return fetchImage(page)
-            .doOnNext { chapterCache.putImageToCache(page.imageUrl!!, it) }
-            .map { page }
+                .doOnNext { chapterCache.putImageToCache(page.imageUrl!!, it) }
+                .map { page }
     }
 }
